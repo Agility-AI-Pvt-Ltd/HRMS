@@ -62,7 +62,7 @@ export default function AdminDashboard() {
   // Generate Single Payroll
 const generateSingle = async (id) => {
   try {
-    const r = await api.post(`/payroll/generate/${id}`);
+    const r = await api.post(`/payroll/${id}/generate`);
 
     setMessage({
       type: "success",
@@ -141,15 +141,14 @@ const generateSingle = async (id) => {
   // Download Slip
 const downloadSlip = async (p) => {
   try {
-    const r = await api.get(`/payroll/${p.id}/download`);
+    const r = await api.get(`/payroll/${p.id}/download`, {
+      responseType: "blob",
+    });
 
-    if (!r.data.url) {
-      setMessage({ type: "error", text: "Invalid file url" });
-      return;
-    }
+    const blob = new Blob([r.data], { type: "application/pdf" });
+    const url = window.URL.createObjectURL(blob);
 
-    window.open(r.data.url, "_blank", "noopener,noreferrer");
-    setMessage({ type: "success", text: "Opening salary slip..." });
+    window.open(url, "_blank");
 
   } catch {
     setMessage({ type: "error", text: "Download failed" });

@@ -2,7 +2,6 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api",
-  // ❌ REMOVE withCredentials — causes silent CORS failures
 });
 
 // ------------------------------------------
@@ -49,10 +48,8 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem("hrms_refresh");
 
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL || "http://localhost:4000/api"}/auth/refresh`,
-          { refreshToken }
-        );
+        // 👇 simplified — uses same baseURL
+        const response = await api.post("/auth/refresh", { refreshToken });
 
         const { accessToken, refreshToken: newRefresh } = response.data;
 
