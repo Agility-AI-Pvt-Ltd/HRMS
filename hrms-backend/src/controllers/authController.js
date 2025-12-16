@@ -13,16 +13,9 @@ import jwt from "jsonwebtoken";
  */
 export const login = async (req, res) => {
   try {
-    console.log("Login request received:", {
-      body: req.body,
-      headers: req.headers,
-      contentType: req.headers["content-type"],
-    });
-    
     const { email, password, loginType } = req.body;
 
     if (!email || !password || !loginType) {
-      console.log("Missing fields:", { email: !!email, password: !!password, loginType: !!loginType });
       return res.status(400).json({ message: "Missing required fields" });
     }
 
