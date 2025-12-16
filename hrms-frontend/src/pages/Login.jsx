@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 import { FiMoon, FiSun } from "react-icons/fi";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
-
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +29,9 @@ export default function Login() {
 
   const toggleTheme = () => setDarkMode((prev) => !prev);
 
+  // ============================
+  // LOGIN SUBMIT — UPDATED
+  // ============================
   const submit = async (e) => {
     e.preventDefault();
     setErrMsg("");
@@ -37,16 +39,21 @@ export default function Login() {
 
     try {
       const res = await api.post("/auth/login", { email, password, loginType });
-      const { accessToken, refreshToken, user } = res.data;
+      const { accessToken, user } = res.data; // ⬅️ refreshToken removed
 
+      // Save only access token
       localStorage.setItem("hrms_access", accessToken);
-      localStorage.setItem("hrms_refresh", refreshToken);
 
+      // Set default header
       api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-      setAuth(user, accessToken, refreshToken);
 
+      // Updated setAuth (no refreshToken)
+      setAuth(user, accessToken);
+
+      // Redirect
       if (user.role === "ADMIN") navigate("/dashboard");
       else navigate("/attendance");
+
     } catch (err) {
       setErrMsg(err.response?.data?.message || "Invalid credentials");
     } finally {
@@ -61,7 +68,6 @@ export default function Login() {
 
       {/* WAVES BACKGROUND */}
       <div className="absolute inset-0 -z-20 pointer-events-none">
-        
         {/* TOP WAVE */}
         <svg
           className="absolute top-0 left-0 w-[200%] h-full animate-waveSlow opacity-60"
@@ -129,7 +135,8 @@ export default function Login() {
             Agility AI
           </span>
         </div>
-      </header> 
+      </header>
+
       {/* THEME TOGGLE */}
       <button
         onClick={toggleTheme}
@@ -172,7 +179,7 @@ export default function Login() {
             Use your company credentials
           </p>
 
-          {/* ROLE SELECTOR  --- FIXED */}
+          {/* ROLE SELECTOR */}
           <div className="flex justify-center gap-2 mb-6">
             {[
               { label: "Admin", value: "ADMIN" },
@@ -197,59 +204,58 @@ export default function Login() {
           {errMsg && <p className="text-red-500 text-center text-sm mb-3">{errMsg}</p>}
 
           {/* FORM */}
-<form onSubmit={submit} className="space-y-4">
-  
-  {/* EMAIL FIELD (Google Suggestion Enabled) */}
-  <input
-    required
-    type="email"
-    autoComplete="email"
-    value={email}
-    onChange={(e) => setEmail(e.target.value)}
-    placeholder="you@company.com"
-    className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
-    text-gray-800 dark:text-gray-100 placeholder-gray-400  
-    border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
-  />
+          <form onSubmit={submit} className="space-y-4">
 
-  {/* PASSWORD WITH EYE BUTTON */}
-  <div className="relative">
-    <input
-      required
-      type={showPassword ? "text" : "password"}
-      autoComplete="current-password"
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      placeholder="••••••••"
-      className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
-      text-gray-800 dark:text-gray-100 placeholder-gray-400 
-      border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
-    />
+            {/* EMAIL */}
+            <input
+              required
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
+              text-gray-800 dark:text-gray-100 placeholder-gray-400  
+              border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
+            />
 
-    {/* Eye Icon */}
-    <button
-      type="button"
-      onClick={() => setShowPassword((prev) => !prev)}
-      className="absolute right-4 top-1/2 -translate-y-1/2 
-      text-gray-600 dark:text-gray-300 cursor-pointer"
-    >
-      {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
-    </button>
-  </div>
+            {/* PASSWORD */}
+            <div className="relative">
+              <input
+                required
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
+                text-gray-800 dark:text-gray-100 placeholder-gray-400 
+                border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
+              />
 
-  {/* SUBMIT */}
-  <button
-    type="submit"
-    disabled={loading}
-    className="w-full py-3 rounded-xl text-white font-semibold 
-    bg-gradient-to-r from-indigo-600 to-pink-500 
-    hover:from-indigo-700 hover:to-pink-600 shadow-lg 
-    transition disabled:opacity-50"
-  >
-    {loading ? "Signing in…" : "Sign In"}
-  </button>
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 
+                text-gray-600 dark:text-gray-300 cursor-pointer"
+              >
+                {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
+              </button>
+            </div>
 
-</form>
+            {/* SUBMIT */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl text-white font-semibold 
+              bg-gradient-to-r from-indigo-600 to-pink-500 
+              hover:from-indigo-700 hover:to-pink-600 shadow-lg 
+              transition disabled:opacity-50"
+            >
+              {loading ? "Signing in…" : "Sign In"}
+            </button>
+          </form>
+
           <p className="mt-6 text-center text-xs text-gray-600 dark:text-gray-400">
             © {new Date().getFullYear()} HRMS — Agility AI & Lyfshilp Academy
           </p>

@@ -534,21 +534,19 @@ return (
                   }`}
                 >
                   <div className="text-lg sm:text-2xl font-bold">{d.day}</div>
-                 <div
-                 className="
-                 font-semibold 
-                 text-[7px]     /* smallest size for mobile */
-                 xs:text-[9px]
-                 sm:text-[11px]
-                 md:text-xs
-                 lg:text-sm
-                 whitespace-nowrap
-                 text-center 
-                 leading-tight
-                "
-                >
-               {d.status}
-              </div>
+<div className="text-center leading-tight font-semibold min-h-[20px]">
+
+  {/* Mobile → sirf first letter */}
+  <span className="block sm:hidden text-[8px]">
+    {d.status.charAt(0)}
+  </span>
+
+  {/* Desktop → full text */}
+  <span className="hidden sm:block text-[12px]">
+    {d.status}
+  </span>
+
+</div>
                 </div>
               ))}
             </div>

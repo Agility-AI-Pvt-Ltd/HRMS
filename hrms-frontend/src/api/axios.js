@@ -3,14 +3,13 @@ import axios from "axios";
 // Ensure baseURL always ends with /api
 const getBaseURL = () => {
   const envURL = import.meta.env.VITE_API_URL || "http://localhost:4000";
-  // Remove trailing slash if present
   const cleanURL = envURL.replace(/\/$/, "");
-  // Ensure /api is appended
   return cleanURL.endsWith("/api") ? cleanURL : `${cleanURL}/api`;
 };
 
 const api = axios.create({
   baseURL: getBaseURL(),
+  withCredentials: true, // 🔥 REQUIRED for refresh token cookie
 });
 
 // ------------------------------------------
@@ -55,16 +54,15 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem("hrms_refresh");
+        // 🔥 Refresh token is sent automatically from HttpOnly cookie
+        const response = await api.get("/auth/refresh");
 
-        // 👇 simplified — uses same baseURL
-        const response = await api.post("/auth/refresh", { refreshToken });
+        const { accessToken } = response.data;
 
-        const { accessToken, refreshToken: newRefresh } = response.data;
-
+        // Save new access token
         localStorage.setItem("hrms_access", accessToken);
-        localStorage.setItem("hrms_refresh", newRefresh);
 
+        // Update axios default auth header
         api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
 
         processQueue(null, accessToken);
@@ -77,7 +75,6 @@ api.interceptors.response.use(
         isRefreshing = false;
 
         localStorage.removeItem("hrms_access");
-        localStorage.removeItem("hrms_refresh");
 
         window.location.href = "/login";
         throw error;

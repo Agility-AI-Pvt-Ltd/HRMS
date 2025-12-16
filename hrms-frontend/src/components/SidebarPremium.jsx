@@ -47,7 +47,7 @@ export default function SidebarPremium({ isOpen, toggleSidebar }) {
     { title: "Employees", icon: <FiUsers />, path: "/employees", adminOnly: true },
     { title: "Departments", icon: <FiGrid />, path: "/departments", adminOnly: true },
     { title: "Attendance", icon: <FiClock />, path: "/attendance" },
-    { title: "Leaves", icon: <FiBookOpen />, path: "/leaves" },
+    { title: "Leaves/WFH", icon: <FiBookOpen />, path: "/leaves" },
     { title: "Reimbursement", icon: <FiFileText />, path: "/reimbursements" },
     { title: "Payroll", icon: <FiCreditCard />, path: "/payroll", adminOnly: true },
     { title: "Notifications", icon: <FiBell />, path: "/notifications" },
