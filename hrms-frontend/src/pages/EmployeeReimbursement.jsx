@@ -225,56 +225,63 @@ export default function EmployeeReimbursement() {
         {list.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400">No requests yet</p>
         ) : (
-          <div className="space-y-4 max-h-[450px] overflow-y-scroll pr-2 custom-scroll">
-            {list.map((r) => (
-              <div
-                key={r.id}
-                className="relative p-4 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:border-gray-700"
-              >
-                {/* DELETE BUTTON FOR PENDING & REJECTED (EMPLOYEE ONLY) */}
-                {["PENDING", "REJECTED"].includes(r.status) && (
-                  <button
-                    onClick={async () => {
-                      await api.delete(`/reimbursement/me/${r.id}`);
-                      loadMy();
-                      showMsg("Request deleted");
-                    }}
-                    className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold"
-                  >
-                    ✕
-                  </button>
-                )}
+<div className="space-y-4 max-h-[450px] overflow-y-scroll pr-2 custom-scroll">
+  {list.map((r) => (
+    <div
+      key={r.id}
+      className="relative p-4 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:border-gray-700"
+    >
+      {/* DELETE BUTTON FOR PENDING & REJECTED (EMPLOYEE ONLY) */}
+      {["PENDING", "REJECTED"].includes(r.status) && (
+        <button
+          onClick={async () => {
+            await api.delete(`/reimbursement/me/${r.id}`);
+            loadMy();
+            showMsg("Request deleted");
+          }}
+          className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold"
+        >
+          ✕
+        </button>
+      )}
 
-                <div className="flex justify-between pr-6">
-                  <h3 className="font-bold dark:text-white">{r.title}</h3>
-                  <span className={`font-bold ${statusColor[r.status]}`}>
-                    {r.status}
-                  </span>
-                </div>
+      <div className="flex justify-between pr-6">
+        <h3 className="font-bold dark:text-white">{r.title}</h3>
+        <span className={`font-bold ${statusColor[r.status]}`}>
+          {r.status}
+        </span>
+      </div>
 
-                <p className="text-sm mt-1 dark:text-gray-300">
-                  Total: ₹{r.totalAmount}
-                </p>
+      <p className="text-sm mt-1 dark:text-gray-300">
+        Total: ₹{r.totalAmount}
+      </p>
 
-                <div className="mt-2 space-y-1">
-                  {r.bills.map((b) => (
-                    <a
-                      key={b.id}
-                      href={b.fileUrl}
-                      target="_blank"
-                      className="text-blue-600 underline text-sm block"
-                    >
-                      Bill • ₹{b.amount} — {b.note}
-                    </a>
-                  ))}
-                </div>
+      <div className="mt-2 space-y-1">
+        {r.bills.map((b) => (
+          <a
+            key={b.id}
+            href={b.fileUrl}
+            target="_blank"
+            className="text-blue-600 underline text-sm block"
+          >
+            Bill • ₹{b.amount} — {b.note}
+          </a>
+        ))}
+      </div>
 
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  {new Date(r.createdAt).toLocaleString()}
-                </p>
-              </div>
-            ))}
-          </div>
+      {/* ⭐ SHOW REJECTED REASON TO EMPLOYEE */}
+      {r.status === "REJECTED" && r.rejectReason && (
+        <p className="text-xs text-red-500 dark:text-red-400 mt-2">
+          <b>Rejected Reason:</b> {r.rejectReason}
+        </p>
+      )}
+
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        {new Date(r.createdAt).toLocaleString()}
+      </p>
+    </div>
+  ))}
+</div>
         )}
       </div>
 

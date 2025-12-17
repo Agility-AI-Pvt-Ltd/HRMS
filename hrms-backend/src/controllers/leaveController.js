@@ -122,7 +122,7 @@ export const getLeaveById = async (req, res) => {
 
 
 /* --------------------------------------------------------
-   UPDATE LEAVE
+   UPDATE LEAVE (Employee can edit only PENDING)
 -------------------------------------------------------- */
 export const updateLeave = async (req, res) => {
   try {
@@ -145,10 +145,10 @@ export const updateLeave = async (req, res) => {
           message: "Cannot modify approved/rejected leave"
         });
 
-      // restrict fields employee can change
       delete input.status;
       delete input.approverId;
       delete input.userId;
+      delete input.rejectReason; // employee cannot change rejection reason
     }
 
     const updated = await prisma.leave.update({
@@ -183,7 +183,7 @@ export const approveLeave = async (req, res) => {
     }
 
     const id = req.params.id;
-    const { action } = req.body;
+    const { action, reason } = req.body; // reason added
 
     if (!["APPROVED", "REJECTED"].includes(action)) {
       return res.status(400).json({ success: false, message: "Invalid action" });
@@ -194,6 +194,7 @@ export const approveLeave = async (req, res) => {
       data: {
         status: action,
         approverId: req.user.id,
+        rejectReason: action === "REJECTED" ? reason || "" : null, // save reject reason
       },
       include: {
         user: true,

@@ -240,23 +240,23 @@ const attendanceBar = useMemo(() => {
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     ],
-    datasets: [
-      {
-        label: "Present",
-        data: months.map((m) => m.present),
-        backgroundColor: "#10B981",
-      },
-      {
-        label: "WFH",
-        data: months.map((m) => m.wfh),
-        backgroundColor: "#3B82F6",
-      },
-      {
-        label: "Leave",
-        data: months.map((m) => m.leave),
-        backgroundColor: "#FACC15",
-      }
-    ],
+datasets: [
+  {
+    label: "Present",
+    data: months.map((m) => m.present),
+    backgroundColor: "#10B981",
+  },
+  {
+    label: "Leave",
+    data: months.map((m) => m.leave),
+    backgroundColor: "#FACC15",
+  },
+  {
+    label: "WFH",
+    data: months.map((m) => m.wfh),
+    backgroundColor: "#3B82F6",
+  }
+],
     autoMax,
   };
 }, [data]);
@@ -354,7 +354,7 @@ const attendanceBar = useMemo(() => {
             ) : (
               <>
                 <InfoBox title="Days Present" subtitle={data.stats.presentDays} icon="✓" />
-                <InfoBox title="Total Leaves" subtitle={data.stats.totalLeaves} icon="L" />
+                <InfoBox title="Total Leaves Applied" subtitle={data.stats.totalLeaves} icon="L" />
                 <InfoBox title="Approved Leaves" subtitle={data.stats.approvedLeaves} icon="A" />
                 <InfoBox title="WFH Days" subtitle={data.stats.wfhDays || 0} icon="W" />
               </>

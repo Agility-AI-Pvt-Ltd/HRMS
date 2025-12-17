@@ -76,11 +76,15 @@ export const updateMyProfile = async (req, res) => {
 /* ============================================================
    LIST USERS
 ============================================================ */
+/* ============================================================
+   LIST USERS (Admin gets all info, Employee gets safe info)
+============================================================ */
 export const listUsers = async (req, res) => {
   try {
     const requester = req.user;
 
     if (requester.role === "ADMIN") {
+      // ADMIN → full access
       const users = await prisma.user.findMany({
         select: {
           id: true,
@@ -99,20 +103,20 @@ export const listUsers = async (req, res) => {
       return res.json({ success: true, users });
     }
 
-    // employee → only self
-    const me = await prisma.user.findUnique({
-      where: { id: requester.id },
+    // EMPLOYEE → needs all users (for dropdown), but safe fields only
+    const users = await prisma.user.findMany({
       select: {
         id: true,
-        email: true,
         firstName: true,
         lastName: true,
         role: true,
         departmentId: true,
       },
+      orderBy: { firstName: "asc" },
     });
 
-    return res.json({ success: true, users: [me] });
+    return res.json({ success: true, users });
+
   } catch (err) {
     console.error("listUsers ERROR:", err);
     return res.status(500).json({
@@ -121,6 +125,7 @@ export const listUsers = async (req, res) => {
     });
   }
 };
+
 
 /* ============================================================
    CREATE USER (ADMIN ONLY)

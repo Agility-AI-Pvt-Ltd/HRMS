@@ -1,0 +1,296 @@
+// ====================== LeavesAdmin.jsx ======================
+import React, { useEffect, useState } from "react";
+import api from "../api/axios";
+import ConfirmDelPopup from "../components/ConfirmDelPopup";
+import ConfirmRejectPopup from "../components/ConfirmRejPopup";
+
+function PageTitle({ title, sub }) {
+  return (
+    <div>
+      <h1 className="text-3xl font-bold">{title}</h1>
+      <p className="text-gray-500 dark:text-gray-400">{sub}</p>
+    </div>
+  );
+}
+
+function GlassCard({ children }) {
+  return (
+    <div className="p-6 rounded-2xl bg-white/60 dark:bg-gray-800/40 shadow border border-gray-200 dark:border-gray-700 backdrop-blur-lg">
+      {children}
+    </div>
+  );
+}
+
+function LeaveItem({ l, updateStatus, deleteLeave, openRejectPopup }) {
+  const getDays = () => {
+    if (!l?.startDate || !l?.endDate) return 0;
+    const s = new Date(l.startDate);
+    const e = new Date(l.endDate);
+    return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  return (
+    <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow relative">
+      
+      {/* DELETE BUTTON */}
+      <button
+        onClick={() => deleteLeave(l.id)}
+        className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold text-xl"
+      >
+        ✕
+      </button>
+
+      {/* LEFT SECTION */}
+      <div>
+        <div className="text-lg font-semibold">
+          {l.type === "WFH"
+            ? <span className="text-blue-600">Work From Home</span>
+            : l.type === "PAID"
+            ? <span className="text-green-600">Paid Leave</span>
+            : l.type === "SICK"
+            ? <span className="text-yellow-600">Sick Leave</span>
+            : l.type === "CASUAL"
+            ? <span className="text-orange-600">Casual Leave</span>
+            : l.type}
+        </div>
+
+        <div className="text-sm text-gray-500">
+          {l.startDate?.slice(0, 10)} → {l.endDate?.slice(0, 10)}
+        </div>
+
+        <div className="text-xs text-gray-400">{getDays()} day(s)</div>
+
+        {l.reason && (
+          <div className="text-xs text-gray-500 mt-1">
+            <b>Reason:</b> {l.reason}
+          </div>
+        )}
+
+        {/* NEW — SHOW REJECT REASON IF LEAVE IS REJECTED */}
+        {l.status === "REJECTED" && l.rejectReason && (
+          <div className="text-xs text-red-500 mt-1">
+            <b>Rejected Because:</b> {l.rejectReason}
+          </div>
+        )}
+
+        <div className="text-xs text-gray-400">
+          User: {l.user?.firstName} {l.user?.lastName}
+        </div>
+      </div>
+
+      {/* RIGHT SECTION */}
+      <div className="flex items-center gap-3 mt-3">
+        <span
+          className={`px-4 py-1 rounded-full text-white text-sm font-medium ${
+            l.status === "APPROVED"
+              ? "bg-green-600"
+              : l.status === "REJECTED"
+              ? "bg-red-600"
+              : "bg-yellow-500"
+          }`}
+        >
+          {l.status}
+        </span>
+
+        {l.status === "PENDING" && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => updateStatus(l.id, "APPROVED")}
+              className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm"
+            >
+              Approve
+            </button>
+
+            <button
+              onClick={() => openRejectPopup(l.id)}
+              className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm"
+            >
+              Reject
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ================= MAIN COMPONENT =================
+
+export default function LeavesAdmin() {
+  const [leaves, setLeaves] = useState([]);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const [msg, setMsg] = useState("");
+  const [msgType, setMsgType] = useState("success");
+  const [loading, setLoading] = useState(true);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectId, setRejectId] = useState(null);
+
+  const openRejectPopup = (id) => {
+    setRejectId(id);
+    setRejectOpen(true);
+  };
+
+  const paginatedLeaves = React.useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return leaves.slice(start, start + PAGE_SIZE);
+  }, [page, leaves]);
+
+  const totalPages = Math.ceil(leaves.length / PAGE_SIZE);
+
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(""), 2000);
+    return () => clearTimeout(t);
+  }, [msg]);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const r = await api.get("/leaves");
+      setLeaves(r.data.leaves || []);
+    } catch (err) {
+      setMsg("Failed to load leaves");
+      setMsgType("error");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // APPROVE
+  const updateStatus = async (id, status) => {
+    try {
+      await api.patch(`/leaves/${id}/approve`, { action: status });
+      setMsg(`Leave ${status.toLowerCase()}`);
+      setMsgType("success");
+      load();
+    } catch (err) {
+      setMsg(err?.response?.data?.message || "Failed");
+      setMsgType("error");
+    }
+  };
+
+  // REJECT WITH REASON
+  const submitReject = async (reason) => {
+    try {
+      await api.patch(`/leaves/${rejectId}/approve`, {
+        action: "REJECTED",
+        reason,
+      });
+
+      setMsg("Leave rejected");
+      setMsgType("success");
+
+      setRejectOpen(false);
+      setRejectId(null);
+      load();
+    } catch (err) {
+      setMsg("Failed to reject");
+      setMsgType("error");
+    }
+  };
+
+  // DELETE POPUP
+  const deleteLeave = (id) => {
+    setDeleteId(id);
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await api.delete(`/leaves/${deleteId}`);
+      setMsg("Leave deleted");
+      setMsgType("success");
+
+      setConfirmOpen(false);
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      setMsg("Delete failed");
+      setMsgType("error");
+    }
+  };
+
+  return (
+    <div className="space-y-10">
+      {msg && (
+        <div
+          className={`p-3 rounded-xl text-center text-sm ${
+            msgType === "success"
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {msg}
+        </div>
+      )}
+
+      <PageTitle title="Leaves" sub="Admin Panel – Approve & Manage Leaves" />
+
+      <GlassCard>
+        <h3 className="text-xl font-semibold mb-4">All Leave Requests</h3>
+
+        {loading ? (
+          <div className="text-center py-6">Loading...</div>
+        ) : (
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+            {paginatedLeaves.map((l) => (
+              <LeaveItem
+                key={l.id}
+                l={l}
+                updateStatus={updateStatus}
+                deleteLeave={deleteLeave}
+                openRejectPopup={openRejectPopup}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-center gap-3 mt-4">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1 bg-gray-300 dark:bg-gray-700 rounded"
+            >
+              ⬅ Prev
+            </button>
+
+            <button
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="px-3 py-1 bg-gray-300 dark:bg-gray-700 rounded"
+            >
+              Next ➜
+            </button>
+          </div>
+        )}
+      </GlassCard>
+
+      {confirmOpen && (
+        <ConfirmDelPopup
+          title="Delete Leave?"
+          message="Are you sure you want to delete this leave request?"
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={confirmDelete}
+        />
+      )}
+
+      {rejectOpen && (
+        <ConfirmRejectPopup
+          onCancel={() => setRejectOpen(false)}
+          onConfirm={submitReject}
+        />
+      )}
+    </div>
+  );
+}

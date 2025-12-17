@@ -106,7 +106,7 @@ export const myReimbursements = async (req, res) => {
     const list = await prisma.reimbursement.findMany({
       where: {
         userId,
-        isEmployeeDeleted: false, // 🔥 Only employee-visible ones
+        isEmployeeDeleted: false,
       },
       include: { bills: true },
       orderBy: { createdAt: "desc" },
@@ -120,7 +120,7 @@ export const myReimbursements = async (req, res) => {
 };
 
 /* =====================================================
-   Employee — Soft DELETE only for employee
+   Employee — Soft DELETE
 ===================================================== */
 export const employeeDeleteReimbursement = async (req, res) => {
   try {
@@ -138,7 +138,7 @@ export const employeeDeleteReimbursement = async (req, res) => {
 
     await prisma.reimbursement.update({
       where: { id },
-      data: { isEmployeeDeleted: true }, // 🔥 employee-only delete
+      data: { isEmployeeDeleted: true },
     });
 
     return res.json({
@@ -152,7 +152,7 @@ export const employeeDeleteReimbursement = async (req, res) => {
 };
 
 /* =====================================================
-   Admin — All Reimbursements (Filtered)
+   Admin — All Reimbursements
 ===================================================== */
 export const getAllReimbursements = async (req, res) => {
   try {
@@ -161,7 +161,7 @@ export const getAllReimbursements = async (req, res) => {
 
     const list = await prisma.reimbursement.findMany({
       where: {
-        isAdminDeleted: false, // 🔥 Admin hidden ones
+        isAdminDeleted: false,
       },
       include: { user: true, bills: true },
       orderBy: { createdAt: "desc" },
@@ -175,7 +175,7 @@ export const getAllReimbursements = async (req, res) => {
 };
 
 /* =====================================================
-   Admin — UPDATE STATUS
+   Admin — UPDATE STATUS (WITH REJECTION REASON)
 ===================================================== */
 export const updateReimbursementStatus = async (req, res) => {
   try {
@@ -183,14 +183,17 @@ export const updateReimbursementStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: "Admin only" });
 
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body; // ⭐ reason added
 
     if (!["APPROVED", "REJECTED"].includes(status))
       return res.status(400).json({ success: false, message: "Invalid status" });
 
     const updated = await prisma.reimbursement.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        rejectReason: status === "REJECTED" ? reason || "" : null, // ⭐ save reason
+      },
     });
 
     return res.json({
@@ -205,7 +208,7 @@ export const updateReimbursementStatus = async (req, res) => {
 };
 
 /* =====================================================
-   Admin — Soft DELETE only for Admin
+   Admin — Soft DELETE
 ===================================================== */
 export const adminDeleteReimbursement = async (req, res) => {
   try {
@@ -216,7 +219,7 @@ export const adminDeleteReimbursement = async (req, res) => {
 
     await prisma.reimbursement.update({
       where: { id },
-      data: { isAdminDeleted: true }, // 🔥 admin-only delete
+      data: { isAdminDeleted: true },
     });
 
     return res.json({
