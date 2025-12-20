@@ -1,23 +1,18 @@
 import prisma from "../prismaClient.js";
 
-const isHalfDay = (type) => type === "HALF_DAY"; 
+const isHalfDay = (type) => type === "HALF_DAY";
 
-// Helper function to get leave type display name
+/* ================= HELPERS ================= */
 const getLeaveTypeName = (type) => {
   const typeNames = {
-    "WFH": "WFH",
-    "HALF_DAY": "Half-day Leave",
-    "PAID": "Paid Leave",
-    "UNPAID": "Unpaid Leave",
-    "SICK": "Sick Leave",
-    "CASUAL": "Casual Leave"
+    WFH: "WFH",
+    HALF_DAY: "Half-day Leave",
+    PAID: "Paid Leave",
+    UNPAID: "Unpaid Leave",
+    SICK: "Sick Leave",
+    CASUAL: "Casual Leave",
   };
   return typeNames[type] || "Leave";
-};
-
-// Helper function to check if date ranges overlap
-const checkDateOverlap = (start1, end1, start2, end2) => {
-  return start1 <= end2 && start2 <= end1;
 };
 
 /* --------------------------------------------------------
@@ -35,45 +30,54 @@ export const createLeave = async (req, res) => {
     if (isHalfDay(type) && startDate !== endDate) {
       return res.status(400).json({
         success: false,
-        message: "Half Day must be for a single date"
+        message: "Half Day must be for a single date",
       });
     }
 
-    // ⭐ CHECK FOR OVERLAPPING APPROVED LEAVES
     const requestStart = new Date(startDate);
     const requestEnd = new Date(endDate);
 
+    // ⭐ CHECK OVERLAPPING APPROVED LEAVES
     const overlappingLeaves = await prisma.leave.findMany({
       where: {
         userId: req.user.id,
         status: "APPROVED",
-        OR: [
-          {
-            AND: [
-              { startDate: { lte: requestEnd } },
-              { endDate: { gte: requestStart } }
-            ]
-          }
-        ]
-      }
+        AND: [
+          { startDate: { lte: requestEnd } },
+          { endDate: { gte: requestStart } },
+        ],
+      },
     });
 
     if (overlappingLeaves.length > 0) {
-      const leaveTypeName = getLeaveTypeName(type);
       return res.status(400).json({
         success: false,
-        message: `already approved on this date or date-range. Cannot apply for ${leaveTypeName}.`
+        message: `Already approved leave exists on this date range`,
       });
     }
 
+    /* ================= 🔥 FIXED PART ================= */
     const employee = await prisma.user.findUnique({
       where: { id: req.user.id },
       include: {
-        department: { select: { managerId: true } }
-      }
+        departments: {
+          include: {
+            department: {
+              include: {
+                managers: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    const approverId = employee?.department?.managerId || null;
+    // First department manager → approver
+    const approverId =
+      employee.departments
+        .flatMap((d) => d.department.managers)
+        .map((m) => m.id)[0] || null;
+    /* ================================================= */
 
     const leave = await prisma.leave.create({
       data: {
@@ -83,24 +87,19 @@ export const createLeave = async (req, res) => {
         endDate: requestEnd,
         reason: reason || "",
         status: "PENDING",
-        approverId
+        approverId,
       },
       include: {
         user: true,
-        approver: true
-      }
+        approver: true,
+      },
     });
-
-    // ✨ Custom success message based on leave type
-    const leaveTypeName = getLeaveTypeName(type);
-    const successMessage = `Your ${leaveTypeName} request has been submitted successfully`;
 
     return res.json({
       success: true,
-      message: successMessage,
-      leave
+      message: `Your ${getLeaveTypeName(type)} request has been submitted successfully`,
+      leave,
     });
-
   } catch (error) {
     console.error("createLeave ERROR:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
@@ -112,38 +111,24 @@ export const createLeave = async (req, res) => {
 -------------------------------------------------------- */
 export const listLeaves = async (req, res) => {
   try {
-    let leaves;
+    const where =
+      req.user.role === "ADMIN" ? {} : { userId: req.user.id };
 
-    if (req.user.role === "ADMIN") {
-      leaves = await prisma.leave.findMany({
-        include: {
-          user: true,
-          approver: true,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-    } else {
-      leaves = await prisma.leave.findMany({
-        where: { userId: req.user.id },
-        include: {
-          user: true,
-          approver: true,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-    }
-
-    return res.json({
-      success: true,
-      leaves
+    const leaves = await prisma.leave.findMany({
+      where,
+      include: {
+        user: true,
+        approver: true,
+      },
+      orderBy: { createdAt: "desc" },
     });
 
+    return res.json({ success: true, leaves });
   } catch (error) {
     console.error("listLeaves ERROR:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
-
 
 /* --------------------------------------------------------
    VIEW SINGLE LEAVE

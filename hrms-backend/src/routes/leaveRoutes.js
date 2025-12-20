@@ -9,45 +9,64 @@ import {
 } from "../controllers/leaveController.js";
 
 import { requireAuth } from "../middlewares/auth.js";
+import { requireManagerOrAdmin } from "../middlewares/requireManagerOrAdmin.js";
 
 const router = express.Router();
 
-/* EMPLOYEE: Create Leave */
+/* =====================================================
+   EMPLOYEE: Create Leave
+===================================================== */
 router.post(
   "/",
   requireAuth(["AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   createLeave
 );
 
-/* ADMIN + EMPLOYEE: List Leaves */
+/* =====================================================
+   ADMIN + EMPLOYEE + MANAGER: List Leaves
+   (filter logic controller me hoga)
+===================================================== */
 router.get(
   "/",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   listLeaves
 );
 
-/* ADMIN + EMPLOYEE: Get One Leave */
+/* =====================================================
+   ADMIN + EMPLOYEE + MANAGER: Get Single Leave
+===================================================== */
 router.get(
   "/:id",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   getLeaveById
 );
 
-/* EMPLOYEE: update own leave + Admin: update any leave */
+/* =====================================================
+   UPDATE LEAVE
+   - Employee → own pending
+   - Admin → any
+===================================================== */
 router.put(
   "/:id",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   updateLeave
 );
 
-/* ⭐ FIXED: Approve / Reject */
+/* =====================================================
+   ⭐ APPROVE / REJECT
+   - Admin → any
+   - Manager → only department employees
+===================================================== */
 router.patch(
   "/:id/approve",
-  requireAuth(["ADMIN"]),
+  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  requireManagerOrAdmin,
   approveLeave
 );
 
-/* Delete Leave */
+/* =====================================================
+   DELETE LEAVE
+===================================================== */
 router.delete(
   "/:id",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
