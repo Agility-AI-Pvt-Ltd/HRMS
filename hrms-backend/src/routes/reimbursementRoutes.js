@@ -6,6 +6,7 @@ import {
   createReimbursement,
   myReimbursements,
   getAllReimbursements,
+  getManagerReimbursements, 
   updateReimbursementStatus,
   employeeDeleteReimbursement,
   adminDeleteReimbursement,
@@ -16,7 +17,7 @@ import { requireAuth } from "../middlewares/auth.js";
 const router = express.Router();
 
 /* =====================================================
-   UPLOAD BILL FILES (PDF / IMAGES)
+   UPLOAD BILL FILES
 ===================================================== */
 router.post(
   "/upload",
@@ -29,50 +30,56 @@ router.post(
    EMPLOYEE ROUTES
 ===================================================== */
 
-// Create new reimbursement
 router.post(
   "/create",
-  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  requireAuth(["AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   createReimbursement
 );
 
-// Get only logged-in employee's reimbursements
 router.get(
   "/me",
-  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  requireAuth(["AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   myReimbursements
 );
 
-// Employee soft-delete only their own item
+router.get(
+  "/manager",
+  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  getManagerReimbursements
+);
+
+
 router.delete(
   "/me/:id",
-  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  requireAuth(["AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   employeeDeleteReimbursement
 );
 
 /* =====================================================
-   ADMIN ROUTES
+   ADMIN ROUTES (VIEW)
 ===================================================== */
 
-// Admin sees all (except soft-deleted by admin)
 router.get(
   "/all",
   requireAuth(["ADMIN"]),
   getAllReimbursements
 );
 
-// Admin change status
-router.put(
-  "/:id/status",
-  requireAuth(["ADMIN"]),
-  updateReimbursementStatus
-);
-
-// Admin soft-delete only for admin view
 router.delete(
   "/admin/:id",
   requireAuth(["ADMIN"]),
   adminDeleteReimbursement
+);
+
+/* =====================================================
+   ⭐ ADMIN + MANAGER — APPROVE / REJECT
+   Logic controller ke andar hai
+===================================================== */
+
+router.patch(
+  "/:id/status",
+  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  updateReimbursementStatus
 );
 
 export default router;

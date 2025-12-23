@@ -9,12 +9,11 @@ import {
 } from "../controllers/leaveController.js";
 
 import { requireAuth } from "../middlewares/auth.js";
-import { requireManagerOrAdmin } from "../middlewares/requireManagerOrAdmin.js";
 
 const router = express.Router();
 
 /* =====================================================
-   EMPLOYEE: Create Leave
+   EMPLOYEE — CREATE LEAVE
 ===================================================== */
 router.post(
   "/",
@@ -23,8 +22,10 @@ router.post(
 );
 
 /* =====================================================
-   ADMIN + EMPLOYEE + MANAGER: List Leaves
-   (filter logic controller me hoga)
+   LIST LEAVES
+   - Employee → own
+   - Manager → dept employees (controller handles)
+   - Admin → all
 ===================================================== */
 router.get(
   "/",
@@ -33,7 +34,7 @@ router.get(
 );
 
 /* =====================================================
-   ADMIN + EMPLOYEE + MANAGER: Get Single Leave
+   GET SINGLE LEAVE
 ===================================================== */
 router.get(
   "/:id",
@@ -53,14 +54,13 @@ router.put(
 );
 
 /* =====================================================
-   ⭐ APPROVE / REJECT
-   - Admin → any
+   ⭐ APPROVE / REJECT (ONE SINGLE API)
+   - Admin → any leave
    - Manager → only department employees
 ===================================================== */
 router.patch(
   "/:id/approve",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
-  requireManagerOrAdmin,
   approveLeave
 );
 

@@ -28,6 +28,12 @@ export const getMe = async (req, res) => {
           }
         },
 
+        managedDepartments: {
+         select: {
+           id: true,
+           name: true
+         }
+        },
         position: true,
         salary: true,
         createdAt: true,
@@ -123,6 +129,9 @@ export const listUsers = async (req, res) => {
     ==================================================== */
     if (requester.role === "ADMIN") {
       const users = await prisma.user.findMany({
+          where: {
+    isActive: true, // 👈 yahin
+  },
         select: {
           ...baseSelect,
           email: true,
@@ -143,6 +152,9 @@ export const listUsers = async (req, res) => {
        EMPLOYEE → SAFE DATA
     ==================================================== */
     const users = await prisma.user.findMany({
+        where: {
+    isActive: true, // 👈 yahin
+  },
       select: baseSelect,
       orderBy: { firstName: "asc" },
     });
@@ -498,24 +510,39 @@ export const deleteUser = async (req, res) => {
     if (requester.role !== "ADMIN") {
       return res.status(403).json({
         success: false,
-        message: "Only admin can delete users",
+        message: "Only admin can deactivate users",
       });
     }
 
     if (requester.id === targetId) {
       return res.status(400).json({
         success: false,
-        message: "Admin cannot delete themselves",
+        message: "Admin cannot deactivate themselves",
       });
     }
 
-    await prisma.user.delete({
+    const user = await prisma.user.findUnique({
       where: { id: targetId },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: targetId },
+      data: {
+        isActive: false,
+        email: `inactive_${Date.now()}_${user.email}`, // 🔐 avoid unique conflict
+      },
     });
 
     return res.json({
       success: true,
-      message: "User deleted",
+      message: "User deactivated successfully",
     });
   } catch (err) {
     console.error("deleteUser ERROR:", err);

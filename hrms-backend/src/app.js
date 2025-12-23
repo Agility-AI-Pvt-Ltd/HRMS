@@ -15,6 +15,7 @@ import payrollRoutes from "./routes/payrollRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import reimbursementRoutes from "./routes/reimbursementRoutes.js";
+import managerRoutes from "./routes/managerRoutes.js";
 
 
 const app = express();
@@ -84,6 +85,7 @@ app.use("/api/payroll", payrollRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/reimbursement", reimbursementRoutes);
+app.use("/api/manager", managerRoutes);
 
 /* ============================================================
    HEALTH CHECK

@@ -207,10 +207,9 @@ const loadAttendance = useCallback(
           newLogs.push(l);
         }
       });
-
-      const todayIso = toISODate(new Date());
-      const todayLog = fullData.logs.find((x) => x.date === todayIso);
-      if (todayLog?.status === "PRESENT") newCal[todayIso] = "PRESENT";
+const todayIso = toISODate(new Date());
+const todayLog = fullData.logs.find((x) => x.date === todayIso);
+if (todayLog?.status === "PRESENT") newCal[todayIso] = "PRESENT";
 
       /* ⭐ KPI CALCULATION FOR FILTER RANGE */
       const present = Object.values(newCal).filter((s) => s === "PRESENT").length;

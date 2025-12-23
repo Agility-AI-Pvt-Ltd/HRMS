@@ -12,6 +12,7 @@ export default function SidebarPremium({ isOpen, toggleSidebar }) {
   const [isMobile, setIsMobile] = useState(false);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const isManager = user?.managedDepartments?.length > 0;
 
   const toggleMenu = (name) => setOpenMenu(openMenu === name ? null : name);
 
@@ -42,17 +43,30 @@ export default function SidebarPremium({ isOpen, toggleSidebar }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isMobile, toggleSidebar]);
 
-  const menus = [
-    { title: "Dashboard", icon: <FiHome />, path: "/" },
-    { title: "Employees", icon: <FiUsers />, path: "/employees", adminOnly: true },
-    { title: "Departments", icon: <FiGrid />, path: "/departments", adminOnly: true },
-    { title: "Attendance", icon: <FiClock />, path: "/attendance" },
-    { title: "Leaves/WFH", icon: <FiBookOpen />, path: "/leaves" },
-    { title: "Reimbursement", icon: <FiFileText />, path: "/reimbursements" },
-    { title: "Payroll", icon: <FiCreditCard />, path: "/payroll", adminOnly: true },
-    { title: "Notifications", icon: <FiBell />, path: "/notifications" },
-    { title: "Settings", icon: <FiSettings />, children: [{ title: "Profile", path: "/profile" }] },
-  ];
+const menus = [
+  { title: "Dashboard", icon: <FiHome />, path: "/" },
+
+  // 🟢 MANAGER DASHBOARD
+  {
+    title: "Manage Your Department",
+    icon: <FiGrid />,
+    path: "/dashboard?view=manager",
+    managerOnly: true,
+  },
+
+  { title: "Employees", icon: <FiUsers />, path: "/employees", adminOnly: true },
+  { title: "Departments", icon: <FiGrid />, path: "/departments", adminOnly: true },
+  { title: "Attendance", icon: <FiClock />, path: "/attendance" },
+  { title: "Leaves/WFH", icon: <FiBookOpen />, path: "/leaves" },
+  { title: "Reimbursement", icon: <FiFileText />, path: "/reimbursements" },
+  { title: "Payroll", icon: <FiCreditCard />, path: "/payroll", adminOnly: true },
+  { title: "Notifications", icon: <FiBell />, path: "/notifications" },
+  {
+    title: "Settings",
+    icon: <FiSettings />,
+    children: [{ title: "Profile", path: "/profile" }],
+  },
+];
 
   return (
     <>
@@ -122,6 +136,7 @@ export default function SidebarPremium({ isOpen, toggleSidebar }) {
         scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {menus.map((m, idx) => {
             if (m.adminOnly && user.role !== "ADMIN") return null;
+            if (m.managerOnly && !isManager) return null;
 
             // Normal menu item
             if (!m.children) {

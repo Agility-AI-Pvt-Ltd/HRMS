@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 
 /* =====================================================
-   STORAGE (uploads/reimbursements)
+   📦 STORAGE
 ===================================================== */
 const uploadDir = path.join(process.cwd(), "uploads", "reimbursements");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -20,15 +20,61 @@ export const uploadBills = multer({
 });
 
 /* =====================================================
-   FULL URL
+   🔹 HELPERS
 ===================================================== */
+const validateManagerReimbursementAccess = async (reimbursementId, managerId) => {
+  const record = await prisma.reimbursement.findFirst({
+    where: {
+      id: reimbursementId,
+      user: {
+        departments: {
+          some: {
+            department: {
+              managers: {
+                some: { id: managerId },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!record) {
+    throw new Error("Manager has no access to this reimbursement");
+  }
+
+  return record;
+};
+
 const getFullUrl = (file) => {
   const base = process.env.SERVER_URL || "http://localhost:4000";
   return `${base}/${file}`.replace(/([^:]\/)\/+/g, "$1");
 };
 
+const calculateTotal = (bills = []) =>
+  bills.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+
+const validateOwner = async (id, userId) => {
+  const record = await prisma.reimbursement.findFirst({
+    where: { id, userId },
+  });
+  if (!record) throw new Error("Unauthorized access");
+  return record;
+};
+
+const updateStatus = async ({ id, status, reason = null }) => {
+  return prisma.reimbursement.update({
+    where: { id },
+    data: {
+      status,
+      rejectReason: status === "REJECTED" ? reason || "" : null,
+    },
+  });
+};
+
 /* =====================================================
-   UPLOAD MULTIPLE BILL FILES
+   📤 UPLOAD BILL FILES
 ===================================================== */
 export const uploadReimbursementFiles = async (req, res) => {
   try {
@@ -37,43 +83,34 @@ export const uploadReimbursementFiles = async (req, res) => {
         .status(400)
         .json({ success: false, message: "No files uploaded" });
 
-    const uploadedFiles = req.files.map((f) => ({
+    const files = req.files.map((f) => ({
       fileUrl: getFullUrl(`uploads/reimbursements/${f.filename}`),
     }));
 
-    return res.json({ success: true, files: uploadedFiles });
-  } catch (err) {
-    console.error("[uploadReimbursementFiles ERROR]", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "File upload failed" });
+    res.json({ success: true, files });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Upload failed" });
   }
 };
 
 /* =====================================================
-   Create Reimbursement (EMPLOYEE)
+   👤 EMPLOYEE — CREATE
 ===================================================== */
 export const createReimbursement = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { title, description, bills } = req.body;
 
-    if (!title || !bills || bills.length === 0)
+    if (!title || !bills?.length)
       return res
         .status(400)
-        .json({ success: false, message: "Title & at least 1 bill required" });
+        .json({ success: false, message: "Title & bills required" });
 
-    const totalAmount = bills.reduce(
-      (sum, b) => sum + Number(b.amount || 0),
-      0
-    );
-
-    const reimb = await prisma.reimbursement.create({
+    const reimbursement = await prisma.reimbursement.create({
       data: {
-        userId,
+        userId: req.user.id,
         title,
         description: description || "",
-        totalAmount,
+        totalAmount: calculateTotal(bills),
         bills: {
           create: bills.map((b) => ({
             fileUrl: b.fileUrl,
@@ -85,149 +122,186 @@ export const createReimbursement = async (req, res) => {
       include: { bills: true },
     });
 
-    return res.json({
+    res.json({
       success: true,
       message: "Reimbursement submitted",
-      reimbursement: reimb,
+      reimbursement,
     });
-  } catch (err) {
-    console.error("[createReimbursement ERROR]", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
 /* =====================================================
-   Employee — My Reimbursements (Filtered)
+   👤 EMPLOYEE — MY LIST
 ===================================================== */
 export const myReimbursements = async (req, res) => {
   try {
-    const userId = req.user.id;
-
     const list = await prisma.reimbursement.findMany({
       where: {
-        userId,
+        userId: req.user.id,
         isEmployeeDeleted: false,
       },
       include: { bills: true },
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json({ success: true, list });
-  } catch (err) {
-    console.error("[myReimbursements ERROR]", err);
-    return res.status(500).json({ success: false, message: "Failed" });
+    res.json({ success: true, list });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Failed" });
   }
 };
 
 /* =====================================================
-   Employee — Soft DELETE
+   👤 EMPLOYEE — SOFT DELETE
 ===================================================== */
 export const employeeDeleteReimbursement = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { id } = req.params;
-
-    const exists = await prisma.reimbursement.findFirst({
-      where: { id, userId },
-    });
-
-    if (!exists)
-      return res
-        .status(403)
-        .json({ success: false, message: "You cannot delete this entry" });
+    await validateOwner(req.params.id, req.user.id);
 
     await prisma.reimbursement.update({
-      where: { id },
+      where: { id: req.params.id },
       data: { isEmployeeDeleted: true },
     });
 
-    return res.json({
-      success: true,
-      message: "Removed from your list",
-    });
-  } catch (err) {
-    console.error("[employeeDeleteReimbursement ERROR]", err);
-    return res.status(500).json({ success: false, message: "Failed" });
+    res.json({ success: true, message: "Removed from your list" });
+  } catch (e) {
+    res.status(403).json({ success: false, message: e.message });
   }
 };
 
 /* =====================================================
-   Admin — All Reimbursements
+   👑 ADMIN — ALL || Manager-Department
 ===================================================== */
+export const getManagerReimbursements = async (req, res) => {
+  try {
+    const managerId = req.user.id;
+
+    const reimbursements = await prisma.reimbursement.findMany({
+      where: {
+        user: {
+          departments: {
+            some: {
+              department: {
+                managers: {
+                  some: {
+                    id: managerId,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            position: true,
+          },
+        },
+        bills: true,          // ✅ bills
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.json({
+      success: true,
+      list: reimbursements,
+    });
+  } catch (err) {
+    console.error("MANAGER REIMBURSEMENTS ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 export const getAllReimbursements = async (req, res) => {
   try {
     if (req.user.role !== "ADMIN")
       return res.status(403).json({ success: false, message: "Admin only" });
 
     const list = await prisma.reimbursement.findMany({
-      where: {
-        isAdminDeleted: false,
-      },
+      where: { isAdminDeleted: false },
       include: { user: true, bills: true },
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json({ success: true, list });
-  } catch (err) {
-    console.error("[getAllReimbursements ERROR]", err);
-    return res.status(500).json({ success: false, message: "Failed" });
+    res.json({ success: true, list });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Failed" });
   }
 };
 
 /* =====================================================
-   Admin — UPDATE STATUS (WITH REJECTION REASON)
+   👑 ADMIN — APPROVE / REJECT
 ===================================================== */
 export const updateReimbursementStatus = async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN")
-      return res.status(403).json({ success: false, message: "Admin only" });
+    const { status, reason } = req.body;
+    const id = req.params.id;
 
-    const { id } = req.params;
-    const { status, reason } = req.body; // ⭐ reason added
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status",
+      });
+    }
 
-    if (!["APPROVED", "REJECTED"].includes(status))
-      return res.status(400).json({ success: false, message: "Invalid status" });
+    /* ================= ACCESS CONTROL ================= */
 
-    const updated = await prisma.reimbursement.update({
-      where: { id },
-      data: {
-        status,
-        rejectReason: status === "REJECTED" ? reason || "" : null, // ⭐ save reason
-      },
-    });
+    if (req.user.role === "ADMIN") {
+      // Admin → full access
+    } else {
+      // Manager → only department employees
+      await validateManagerReimbursementAccess(id, req.user.id);
+    }
+
+    /* ================================================= */
+
+const reimbursement = await updateStatus({
+  id,
+  status,
+  reason,
+});
 
     return res.json({
       success: true,
-      message: `Reimbursement ${status}`,
-      reimbursement: updated,
+      message: `Reimbursement ${status.toLowerCase()}`,
+      reimbursement,
     });
-  } catch (err) {
-    console.error("[updateReimbursementStatus ERROR]", err);
-    return res.status(500).json({ success: false, message: "Failed" });
+  } catch (e) {
+    console.error("updateReimbursementStatus ERROR:", e);
+    return res.status(403).json({
+      success: false,
+      message: e.message,
+    });
   }
 };
 
+
 /* =====================================================
-   Admin — Soft DELETE
+   👑 ADMIN — SOFT DELETE
 ===================================================== */
 export const adminDeleteReimbursement = async (req, res) => {
   try {
     if (req.user.role !== "ADMIN")
       return res.status(403).json({ success: false, message: "Admin only" });
 
-    const { id } = req.params;
-
     await prisma.reimbursement.update({
-      where: { id },
+      where: { id: req.params.id },
       data: { isAdminDeleted: true },
     });
 
-    return res.json({
-      success: true,
-      message: "Removed from admin list",
-    });
-  } catch (err) {
-    console.error("[adminDeleteReimbursement ERROR]", err);
-    return res.status(500).json({ success: false, message: "Failed to delete" });
+    res.json({ success: true, message: "Removed from admin list" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Failed" });
   }
 };

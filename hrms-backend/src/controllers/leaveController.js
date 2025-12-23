@@ -38,23 +38,26 @@ export const createLeave = async (req, res) => {
     const requestEnd = new Date(endDate);
 
     // ⭐ CHECK OVERLAPPING APPROVED LEAVES
-    const overlappingLeaves = await prisma.leave.findMany({
-      where: {
-        userId: req.user.id,
-        status: "APPROVED",
-        AND: [
-          { startDate: { lte: requestEnd } },
-          { endDate: { gte: requestStart } },
-        ],
-      },
-    });
+const overlappingLeaves = await prisma.leave.findMany({
+  where: {
+    userId: req.user.id,
+    status: { in: ["PENDING", "APPROVED"] },
+    AND: [
+      { startDate: { lte: requestEnd } },
+      { endDate: { gte: requestStart } },
+    ],
+  },
+});
 
-    if (overlappingLeaves.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Already approved leave exists on this date range`,
-      });
-    }
+if (overlappingLeaves.length > 0) {
+  return res.status(400).json({
+    success: false,
+    message:
+      type === "WFH"
+        ? "WFH already exists or clashes with another leave"
+        : "Leave already exists for this date range",
+  });
+}
 
     /* ================= 🔥 FIXED PART ================= */
     const employee = await prisma.user.findUnique({
@@ -264,55 +267,98 @@ export const updateLeave = async (req, res) => {
 -------------------------------------------------------- */
 export const approveLeave = async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") {
-      return res.status(403).json({ success: false, message: "Admin only" });
-    }
-
     const id = req.params.id;
     const { action, reason } = req.body;
 
     if (!["APPROVED", "REJECTED"].includes(action)) {
-      return res.status(400).json({ success: false, message: "Invalid action" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid action",
+      });
     }
 
-    // Get the leave to check for overlaps before approving
-    const leaveToApprove = await prisma.leave.findUnique({
+    const leave = await prisma.leave.findUnique({
       where: { id },
-      include: { user: true }
+      include: {
+        user: {
+          include: {
+            departments: {
+              include: {
+                department: {
+                  include: {
+                    managers: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!leaveToApprove) {
-      return res.status(404).json({ success: false, message: "Leave not found" });
+    if (!leave) {
+      return res.status(404).json({
+        success: false,
+        message: "Leave not found",
+      });
     }
 
-    // ⭐ CHECK FOR OVERLAPPING APPROVED LEAVES (only when approving)
+    /* =====================================================
+       🔐 PERMISSION CHECK
+       - ADMIN → always allowed
+       - MANAGER → only if employee is in manager's department
+    ===================================================== */
+
+    let allowed = false;
+
+    if (req.user.role === "ADMIN") {
+      allowed = true;
+    } else {
+      // 🔥 relation-based manager check
+      const managerIds = leave.user.departments
+        .flatMap((d) => d.department.managers)
+        .map((m) => m.id);
+
+      if (managerIds.includes(req.user.id)) {
+        allowed = true;
+      }
+    }
+
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to approve this leave",
+      });
+    }
+
+    /* =====================================================
+       ⭐ OVERLAP CHECK (ONLY WHEN APPROVING)
+    ===================================================== */
     if (action === "APPROVED") {
       const overlappingLeaves = await prisma.leave.findMany({
         where: {
-          userId: leaveToApprove.userId,
+          userId: leave.userId,
           status: "APPROVED",
-          id: { not: id }, // Exclude current leave
-          OR: [
-            {
-              AND: [
-                { startDate: { lte: leaveToApprove.endDate } },
-                { endDate: { gte: leaveToApprove.startDate } }
-              ]
-            }
-          ]
-        }
+          id: { not: id },
+          AND: [
+            { startDate: { lte: leave.endDate } },
+            { endDate: { gte: leave.startDate } },
+          ],
+        },
       });
 
       if (overlappingLeaves.length > 0) {
-        const leaveTypeName = getLeaveTypeName(leaveToApprove.type);
         return res.status(400).json({
           success: false,
-          message: `This employee already has an approved leave on this date range. Cannot approve ${leaveTypeName}.`
+          message: "Employee already has an approved leave in this date range",
         });
       }
     }
 
-    const leave = await prisma.leave.update({
+    /* =====================================================
+       ✅ UPDATE STATUS
+    ===================================================== */
+    const updated = await prisma.leave.update({
       where: { id },
       data: {
         status: action,
@@ -322,26 +368,22 @@ export const approveLeave = async (req, res) => {
       include: {
         user: true,
         approver: true,
-      }
+      },
     });
-
-    // ✨ Custom success message based on action and leave type
-    const leaveTypeName = getLeaveTypeName(leave.type);
-    const actionText = action === "APPROVED" ? "approved" : "rejected";
-    const successMessage = `${leaveTypeName} request has been ${actionText}`;
 
     return res.json({
       success: true,
-      message: successMessage,
-      leave
+      message: `Leave ${action.toLowerCase()} successfully`,
+      leave: updated,
     });
-
   } catch (error) {
     console.error("approveLeave ERROR:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
-
 
 /* --------------------------------------------------------
    DELETE LEAVE

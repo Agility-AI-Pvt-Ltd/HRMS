@@ -57,13 +57,17 @@ const SmallMonthCalendar = ({ attendance = [] }) => {
       typeof a.date === "string"
         ? a.date.slice(0, 10)
         : new Date(a.date).toLocaleDateString("en-CA");
+attMap[iso] = {
+  present:
+    a.status === "PRESENT" ||
+    a.status === "LATE" ||
+    a.status === "ON_TIME" ||
+    !!a.checkIn,
 
-    attMap[iso] = {
-      present: !!a.checkIn,
-      wfh: a.status === "WFH",
-      leave: a.status === "LEAVE" && a.status !== "HALF_DAY",
-      halfDay: a.status === "HALF_DAY",
-    };
+  wfh: a.status === "WFH",
+  leave: a.status === "LEAVE",
+  halfDay: a.status === "HALF_DAY",
+};
   });
 
   const offset = (first.getDay() + 6) % 7;
@@ -114,12 +118,12 @@ const SmallMonthCalendar = ({ attendance = [] }) => {
           else clsLight = "bg-red-200/40 border-red-500 text-red-700";
 
           // 🌚 DARK MODE SOLID COLORS (visible)
-          if (c.present) clsDark = "dark:bg-green-700 dark:border-green-400 dark:text-green-100";
-          if (c.halfDay) clsDark = "dark:bg-purple-700 dark:border-purple-400 dark:text-purple-100";
-          else if (c.wfh) clsDark = "dark:bg-blue-700 dark:border-blue-400 dark:text-blue-100";
-          else if (c.leave) clsDark = "dark:bg-yellow-700 dark:border-yellow-400 dark:text-yellow-100";
-          else if (c.isFuture) clsDark = "dark:bg-gray-700 dark:border-gray-500 dark:text-gray-300";
-          else clsDark = "dark:bg-red-700 dark:border-red-400 dark:text-red-100";
+    if (c.present) clsDark = "dark:bg-green-700 dark:border-green-400 dark:text-green-100";
+else if (c.halfDay) clsDark = "dark:bg-purple-700 dark:border-purple-400 dark:text-purple-100";
+else if (c.wfh) clsDark = "dark:bg-blue-700 dark:border-blue-400 dark:text-blue-100";
+else if (c.leave) clsDark = "dark:bg-yellow-700 dark:border-yellow-400 dark:text-yellow-100";
+else if (c.isFuture) clsDark = "dark:bg-gray-700 dark:border-gray-500 dark:text-gray-300";
+else clsDark = "dark:bg-red-700 dark:border-red-400 dark:text-red-100";
 
           return (
             <div
