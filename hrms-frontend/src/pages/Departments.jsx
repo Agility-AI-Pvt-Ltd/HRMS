@@ -19,6 +19,9 @@ export default function Departments() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editDep, setEditDep] = useState(null);
 
+  const [saveLoading, setSaveLoading] = useState(false);   // for create/update
+  const [deleteLoadingId, setDeleteLoadingId] = useState(null); // row-wise delete waiting
+
 const [form, setForm] = useState({
   name: "",
   managerIds: [],
@@ -72,32 +75,35 @@ setForm({
   };
 
   /* ---- CREATE OR UPDATE ---- */
-  const submit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editDep) {
-       await api.put(`/departments/${editDep.id}`, {
-  name: form.name,
-  managerIds: form.managerIds,
-});
-        setMsg("Department updated successfully");
-        setMsgType("success");
-      } else {
-        await api.post("/departments", {
-  name: form.name,
-  managerIds: form.managerIds,
-});
-        setMsg("Department created successfully");
-        setMsgType("success");
-      }
+const submit = async (e) => {
+  e.preventDefault();
+  try {
+    setSaveLoading(true);
 
-      setModalOpen(false);
-      load();
-    } catch (err) {
-      setMsg(err.response?.data?.message || "Error saving department");
-      setMsgType("error");
+    if (editDep) {
+      await api.put(`/departments/${editDep.id}`, {
+        name: form.name,
+        managerIds: form.managerIds,
+      });
+      setMsg("Department updated successfully");
+    } else {
+      await api.post("/departments", {
+        name: form.name,
+        managerIds: form.managerIds,
+      });
+      setMsg("Department created successfully");
     }
-  };
+
+    setMsgType("success");
+    setModalOpen(false);
+    load();
+  } catch (err) {
+    setMsg(err.response?.data?.message || "Error saving department");
+    setMsgType("error");
+  } finally {
+    setSaveLoading(false);
+  }
+};
 
   /* ---- DELETE OPEN CONFIRM ---- */
   const askDelete = (id) => {
@@ -106,21 +112,25 @@ setForm({
   };
 
   /* ---- DELETE AFTER CONFIRM ---- */
-  const handleDelete = async () => {
-    try {
-      await api.delete(`/departments/${deleteId}`);
+const handleDelete = async () => {
+  try {
+    setDeleteLoadingId(deleteId);
 
-      setMsg("Department deleted successfully");
-      setMsgType("success");
+    await api.delete(`/departments/${deleteId}`);
 
-      setConfirmOpen(false);
-      setDeleteId(null);
-      load();
-    } catch (err) {
-      setMsg(err.response?.data?.message || "Error deleting department");
-      setMsgType("error");
-    }
-  };
+    setMsg("Department deleted successfully");
+    setMsgType("success");
+    setConfirmOpen(false);
+    setDeleteId(null);
+    load();
+
+  } catch (err) {
+    setMsg(err.response?.data?.message || "Error deleting department");
+    setMsgType("error");
+  } finally {
+    setDeleteLoadingId(null);
+  }
+};
 
   /* ---- UI ---- */
   return (
@@ -199,15 +209,16 @@ setForm({
       {/* ADD/EDIT MODAL */}
       {modalOpen && (
         <Modal>
-          <DepartmentForm
-            submit={submit}
-            close={() => setModalOpen(false)}
-            form={form}
-            setForm={setForm}
-            editDep={editDep}
-            users={users}
-            getFullName={getFullName}
-          />
+        <DepartmentForm
+  submit={submit}
+  close={() => setModalOpen(false)}
+  form={form}
+  setForm={setForm}
+  editDep={editDep}
+  users={users}
+  getFullName={getFullName}
+  saveLoading={saveLoading}       // ⬅ added
+/>
         </Modal>
       )}
 
@@ -229,12 +240,13 @@ setForm({
                 No
               </button>
 
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg"
-              >
-                Yes, Delete
-              </button>
+             <button
+  onClick={handleDelete}
+  disabled={deleteLoadingId === deleteId}
+  className="px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50"
+>
+  {deleteLoadingId === deleteId ? "Deleting..." : "Yes, Delete"}
+</button>
             </div>
           </div>
         </div>
@@ -272,7 +284,7 @@ function Modal({ children }) {
   );
 }
 
-function DepartmentForm({ submit, close, form, setForm, editDep, users, getFullName }) {
+function DepartmentForm({ submit, close, form, setForm, editDep, users, getFullName, saveLoading }) {
   const update = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
@@ -318,9 +330,10 @@ function DepartmentForm({ submit, close, form, setForm, editDep, users, getFullN
             Cancel
           </button>
 
-          <button className="px-4 py-2 rounded-lg bg-indigo-600 text-white">
-            {editDep ? "Update" : "Create"}
-          </button>
+<button className="px-4 py-2 rounded-lg bg-indigo-600 text-white" disabled={saveLoading}>
+  {saveLoading ? "Please wait..." : editDep ? "Update" : "Create"}
+</button>
+
         </div>
       </form>
 

@@ -16,6 +16,8 @@ import EmployeeView from "./pages/EmployeeView";
 
 import Reimbursement from "./pages/Reimbursement.jsx";
 
+import Resignation from "./pages/Resignation.jsx";
+
 import useAuthStore from "./stores/authstore";
 import api from "./api/axios";
 
@@ -181,6 +183,19 @@ export default function App() {
               <Dashboard />
             </LayoutPremium>
           </ProtectedRoute>
+        }
+      />
+      {/* ==============================
+       ⭐ NEW — RESIGNATION ROUTE
+        ============================== */}
+      <Route
+         path="/resignation"
+         element={
+         <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+            <LayoutPremium>
+              <Resignation />
+            </LayoutPremium>
+        </ProtectedRoute>
         }
       />
 

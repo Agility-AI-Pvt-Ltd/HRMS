@@ -4,7 +4,7 @@ import TopbarPremium from "./TopbarPremium";
 import DarkModeToggle from "./DarkModeToggle";
 import NotificationDropdown from "./NotificationDropdowns";
 import ProfileMenu from "./ProfileMenu";
-import FAB from "./FABs";
+// import FAB from "./FABs";
 
 export default function LayoutPremium({ children }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -44,7 +44,7 @@ export default function LayoutPremium({ children }) {
         </main>
       </div>
 
-      <FAB />
+      {/* <FAB /> */}
     </div>
   );
 }

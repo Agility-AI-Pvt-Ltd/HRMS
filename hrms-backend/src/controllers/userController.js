@@ -491,6 +491,11 @@ export const getUserFullDetails = async (req, res) => {
         leaves: true,
         payrolls: true,
         notifications: true,
+         //  🟢 ADD THIS
+ resignations: {
+   where: { isEmployeeDeleted: false },
+   orderBy: { createdAt: "desc" },
+}
       },
     });
 

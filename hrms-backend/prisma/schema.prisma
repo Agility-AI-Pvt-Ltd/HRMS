@@ -33,6 +33,9 @@ model User {
   department         Department?      @relation("DepartmentUsers", fields: [departmentId], references: [id])
   managedDepartments Department[]     @relation("DepartmentManagers")
 
+  // 🔥 Resignation relation added
+  resignations       Resignation[]
+
   @@map("users")
 }
 
@@ -179,6 +182,32 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+///////////////////////////
+/// 🔥 UPDATED RESIGNATION
+///////////////////////////
+model Resignation {
+  id                String       @id @default(uuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id])
+
+  // Form fields
+  lastWorking       DateTime
+  reasonType        String       @default("Other") 
+  reason            String?      // Optional text
+  noticePeriod      Int?
+  handoverDetail    String?
+  declaration       Boolean      @default(false)
+
+  // Admin side
+  status            ResignStatus @default(PENDING)
+  rejectReason      String?
+  isEmployeeDeleted Boolean      @default(false)
+  isAdminDeleted    Boolean      @default(false)
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
 /// *
 ///  * ===================== ENUMS =====================
 enum Role {
@@ -197,6 +226,15 @@ enum LeaveType {
 }
 
 enum ReimbursementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+///////////////////////////
+/// 🔥 NEW ENUM
+///////////////////////////
+enum ResignStatus {
   PENDING
   APPROVED
   REJECTED

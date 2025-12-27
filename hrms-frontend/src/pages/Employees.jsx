@@ -27,6 +27,8 @@ export default function Employees() {
 
   // Error
   const [errorMsg, setErrorMsg] = useState("");
+  const [saveLoading, setSaveLoading] = useState(false);      // for create/update
+  const [deleteLoadingId, setDeleteLoadingId] = useState(null); // unique delete row wait
 
   // Form
   const emptyForm = {
@@ -96,6 +98,7 @@ export default function Employees() {
 const submit = async (e) => {
   e.preventDefault();
   setErrorMsg("");
+  setSaveLoading(true);     // 🔥 start loader
 
   try {
     await api[editUser ? "put" : "post"](
@@ -104,10 +107,14 @@ const submit = async (e) => {
     );
 
     setMsg(editUser ? "Employee updated successfully" : "Employee created successfully");
+    setMsgType("success");
     setModalOpen(false);
     load();
+
   } catch (err) {
     setErrorMsg(err.response?.data?.message || "Error saving user");
+  } finally {
+    setSaveLoading(false);    // 🔥 stop loader
   }
 };
 
@@ -119,20 +126,25 @@ const submit = async (e) => {
 
   /* Delete after confirm */
   const handleDelete = async () => {
-    try {
-      await api.delete(`/users/${deleteId}`);
+  try {
+    setDeleteLoadingId(deleteId);   // start loader
 
-      setMsg("Employee deleted successfully");
-      setMsgType("success");
+    await api.delete(`/users/${deleteId}`);
 
-      setConfirmOpen(false);
-      setDeleteId(null);
-      load();
-    } catch (err) {
-      setMsg(err.response?.data?.message || "Error deleting");
-      setMsgType("error");
-    }
-  };
+    setMsg("Employee deleted successfully");
+    setMsgType("success");
+    setConfirmOpen(false);
+    setDeleteId(null);
+    load();
+
+  } catch (err) {
+    setMsg(err.response?.data?.message || "Error deleting");
+    setMsgType("error");
+  } finally {
+    setDeleteLoadingId(null);       // stop loader
+  }
+};
+
 
   /* =======================================================
          UI
@@ -172,31 +184,33 @@ const submit = async (e) => {
         {loading ? (
           <div className="text-center py-6">Loading...</div>
         ) : (
-          <EmployeesTable
-            users={users}
-            askDelete={askDelete}
-            openEdit={openEdit}
-            me={me}
-            departments={departments}
-            navigate={navigate}
-          />
+     <EmployeesTable
+  users={users}
+  askDelete={askDelete}
+  openEdit={openEdit}
+  me={me}
+  departments={departments}
+  navigate={navigate}
+
+  deleteLoadingId={deleteLoadingId}   // ⬅ row loading support
+/>
         )}
       </GlassCard>
 
       {/* Add/Edit Modal */}
       {modalOpen && (
         <Modal>
-          <UserForm
-            form={form}
-            setForm={setForm}
-            submit={submit}
-            close={() => setModalOpen(false)}
-            editUser={editUser}
-            errorMsg={errorMsg}
-            me={me}
-            departments={departments}
-               
-          />
+        <UserForm
+  form={form}
+  setForm={setForm}
+  submit={submit}
+  close={() => setModalOpen(false)}
+  editUser={editUser}
+  errorMsg={errorMsg}
+  me={me}
+  departments={departments}
+  saveLoading={saveLoading}     // 🔥 required
+/>
         </Modal>
       )}
 
@@ -218,12 +232,14 @@ const submit = async (e) => {
                 No
               </button>
 
-              <button
-                onClick={handleDelete}
-                className="px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg text-sm sm:text-base"
-              >
-                Yes, Delete
-              </button>
+           <button
+  onClick={handleDelete}
+  disabled={deleteLoadingId === deleteId}
+  className="px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg text-sm sm:text-base disabled:opacity-50"
+>
+  {deleteLoadingId === deleteId ? "Deleting..." : "Yes, Delete"}
+</button>
+
             </div>
           </div>
         </div>
@@ -262,7 +278,7 @@ function Modal({ children }) {
   );
 }
 
-function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate }) {
+function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate, deleteLoadingId }) {
   return (
     <>
       {/* ===== MOBILE CARD VIEW (xs, sm) ===== */}
@@ -307,15 +323,19 @@ function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate 
                   <FiEdit size={16} />
                 </button>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    askDelete(u.id);
-                  }}
-                  className="p-2 rounded-lg bg-red-500 text-white"
-                >
-                  <FiTrash2 size={16} />
-                </button>
+              <button
+  onClick={(e) => {
+    e.stopPropagation();
+    askDelete(u.id);
+  }}
+  disabled={deleteLoadingId === u.id}
+  className={`p-2 rounded-lg text-white ${
+    deleteLoadingId === u.id ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
+  } disabled:opacity-50`}
+>
+  {deleteLoadingId === u.id ? "..." : <FiTrash2 size={16} />}
+</button>
+
               </div>
             )}
           </div>
@@ -374,15 +394,19 @@ function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate 
                       </button>
 
                       {/* Delete */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          askDelete(u.id);
-                        }}
-                        className="p-2 rounded-lg bg-red-500 text-white"
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
+                <button
+  onClick={(e) => {
+    e.stopPropagation();
+    askDelete(u.id);
+  }}
+  disabled={deleteLoadingId === u.id}
+  className={`p-2 rounded-lg text-white ${
+    deleteLoadingId === u.id ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
+  } disabled:opacity-50`}
+>
+  {deleteLoadingId === u.id ? "..." : <FiTrash2 size={16} />}
+</button>
+
                     </div>
                   </td>
                 )}
@@ -395,7 +419,7 @@ function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate 
   );
 }
 
-function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, departments }) {
+function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, departments, saveLoading }){
   const [showPassword, setShowPassword] = useState(false);
   const update = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -517,9 +541,13 @@ function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, depart
             Cancel
           </button>
 
-          <button className="px-3 sm:px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm sm:text-base">
-            {editUser ? "Update" : "Create"}
-          </button>
+   <button
+  disabled={saveLoading}
+  className="px-3 sm:px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm sm:text-base disabled:opacity-50"
+>
+  {saveLoading ? "Please wait..." : editUser ? "Update" : "Create"}
+</button>
+
         </div>
       </form>
 

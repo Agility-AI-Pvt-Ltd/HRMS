@@ -21,7 +21,7 @@ function GlassCard({ children }) {
   );
 }
 
-function LeaveItem({ l, updateStatus, deleteLeave, openRejectPopup }) {
+function LeaveItem({ l, updateStatus, deleteLeave, openRejectPopup,approveLoadingId, rejectLoadingId, deleteLoadingId }) {
   const getDays = () => {
     if (!l?.startDate || !l?.endDate) return 0;
     const s = new Date(l.startDate);
@@ -39,12 +39,13 @@ function LeaveItem({ l, updateStatus, deleteLeave, openRejectPopup }) {
     <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow relative">
       
       {/* DELETE BUTTON */}
-      <button
-        onClick={() => deleteLeave(l.id)}
-        className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold text-xl"
-      >
-        ✕
-      </button>
+    <button
+  onClick={() => deleteLeave(l.id)}
+  disabled={deleteLoadingId === l.id}
+  className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold text-xl disabled:opacity-50"
+>
+  {deleteLoadingId === l.id ? "Deleting..." : "✕"}
+</button>
 
       {/* LEFT SECTION */}
       <div>
@@ -104,23 +105,27 @@ function LeaveItem({ l, updateStatus, deleteLeave, openRejectPopup }) {
           {l.status}
         </span>
 
-        {l.status === "PENDING" && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => updateStatus(l.id, "APPROVED")}
-              className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-            >
-              Approve
-            </button>
+{l.status === "PENDING" && (
+  <div className="flex gap-2">
 
-            <button
-              onClick={() => openRejectPopup(l.id)}
-              className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
-            >
-              Reject
-            </button>
-          </div>
-        )}
+    <button
+      onClick={() => updateStatus(l.id, "APPROVED")}
+      disabled={approveLoadingId === l.id}
+      className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm disabled:opacity-50"
+    >
+      {approveLoadingId === l.id ? "Please wait..." : "Approve"}
+    </button>
+
+    <button
+      onClick={() => openRejectPopup(l.id)}
+      disabled={rejectLoadingId === l.id}
+      className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm disabled:opacity-50"
+    >
+      {rejectLoadingId === l.id ? "Processing..." : "Reject"}
+    </button>
+
+  </div>
+)}
       </div>
     </div>
   );
@@ -142,6 +147,10 @@ export default function LeavesAdmin() {
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectId, setRejectId] = useState(null);
+
+  const [approveLoadingId, setApproveLoadingId] = useState(null);
+  const [rejectLoadingId, setRejectLoadingId] = useState(null);
+  const [deleteLoadingId, setDeleteLoadingId] = useState(null);
 
   const openRejectPopup = (id) => {
     setRejectId(id);
@@ -178,44 +187,48 @@ export default function LeavesAdmin() {
   }, []);
 
   // APPROVE - Now shows backend custom message
-  const updateStatus = async (id, status) => {
-    try {
-      const response = await api.patch(`/leaves/${id}/approve`, { action: status });
-      
-      // ✨ Use backend message if available, otherwise fallback
-      const successMessage = response.data?.message || `Leave ${status.toLowerCase()}`;
-      
-      setMsg(successMessage);
-      setMsgType("success");
-      load();
-    } catch (err) {
-      setMsg(err?.response?.data?.message || "Failed to update leave status");
-      setMsgType("error");
-    }
-  };
+// APPROVE
+const updateStatus = async (id, status) => {
+  try {
+    setApproveLoadingId(id);                     // only this button loading
+    const res = await api.patch(`/leaves/${id}/approve`, { action: status });
+
+    setMsg(res.data?.message || "Status updated");
+    setMsgType("success");
+    load();
+  } catch (e) {
+    setMsg("Failed to update");
+    setMsgType("error");
+  } finally {
+    setApproveLoadingId(null);
+  }
+};
 
   // REJECT WITH REASON - Now shows backend custom message
-  const submitReject = async (reason) => {
-    try {
-      const response = await api.patch(`/leaves/${rejectId}/approve`, {
-        action: "REJECTED",
-        reason,
-      });
+// REJECT
+const submitReject = async (reason) => {
+  try {
+    setRejectLoadingId(rejectId);
 
-      // ✨ Use backend message if available
-      const successMessage = response.data?.message || "Leave rejected";
+    const res = await api.patch(`/leaves/${rejectId}/approve`, {
+      action: "REJECTED",
+      reason,
+    });
 
-      setMsg(successMessage);
-      setMsgType("success");
+    setMsg(res.data?.message || "Leave rejected");
+    setMsgType("success");
+    setRejectOpen(false);
+    setRejectId(null);
+    load();
 
-      setRejectOpen(false);
-      setRejectId(null);
-      load();
-    } catch (err) {
-      setMsg(err?.response?.data?.message || "Failed to reject leave");
-      setMsgType("error");
-    }
-  };
+  } catch (e) {
+    setMsg("Failed to reject");
+    setMsgType("error");
+  } finally {
+    setRejectLoadingId(null);
+  }
+};
+
 
   // DELETE POPUP
   const deleteLeave = (id) => {
@@ -277,6 +290,10 @@ export default function LeavesAdmin() {
                 updateStatus={updateStatus}
                 deleteLeave={deleteLeave}
                 openRejectPopup={openRejectPopup}
+                
+                approveLoadingId={approveLoadingId}   // ADD THIS
+                rejectLoadingId={rejectLoadingId}   
+                deleteLoadingId={deleteLoadingId}   // ADD THIS
               />
             ))}
           </div>

@@ -381,86 +381,61 @@ export const adminDeleteReimbursement = async (req, res) => {
 export const exportReimbursements = async (req, res) => {
   try {
     const user = req.user;
-    const billUrls = (bills = []) =>
-  bills.map((b) => b.fileUrl).join("\n");
     let { start, end, userId, departmentId, format } = req.query;
     if (!format) format = "csv";
 
-    const where = {
-      isAdminDeleted: false,
+    const BASE_URL = "https://www.agilityai.in"; // LIVE DOMAIN
+
+    const formatUrl = (url) => {
+      if (!url) return "";
+      return url.replace("http://localhost:4000", BASE_URL);
     };
 
-    /* 🔐 ROLE BASED */
-    if (user.role !== "ADMIN") {
-      where.userId = user.id;
-    } else if (userId) {
-      where.userId = userId;
-    }
+    const where = { isAdminDeleted: false };
 
-    /* 📅 DATE FILTER */
+    // Role based filter
+    if (user.role !== "ADMIN") where.userId = user.id;
+    else if (userId) where.userId = userId;
+
+    // Date filter
     if (start && end) {
-      where.createdAt = {
-        gte: new Date(start),
-        lte: new Date(end),
-      };
+      where.createdAt = { gte: new Date(start), lte: new Date(end) };
     }
 
-    /* 🏢 DEPARTMENT FILTER */
+    // Department filter
     if (departmentId) {
-      where.user = {
-        departments: {
-          some: {
-            departmentId: departmentId,
-          },
-        },
-      };
+      where.user = { departments: { some: { departmentId } } };
     }
 
     const rows = await prisma.reimbursement.findMany({
       where,
-      include: {
-        user: true,
-        bills: true,
-      },
+      include: { user: true, bills: true },
       orderBy: { createdAt: "desc" },
     });
 
-    /* ================= CSV ================= */
+    /* ================= CSV EXPORT ================= */
     if (format === "csv") {
       const parser = new Parser({
-        fields: [
-          "id",
-          "user.firstName",
-          "user.lastName",
-          "title",
-          "totalAmount",
-          "status",
-          "billUrls", 
-          "createdAt",
-        ],
+        fields: ["employee", "title", "totalAmount", "status", "billUrls", "createdAt"]
       });
 
       const csv = parser.parse(
-        filteredRows.map((r) => ({
+        rows.map((r) => ({
           employee: `${r.user.firstName} ${r.user.lastName}`,
           title: r.title,
           totalAmount: r.totalAmount,
           status: r.status,
-          billsCount: r.bills.length,
-          billUrls: r.bills.map((b) => b.fileUrl).join(" | "),
-          createdAt: r.createdAt.toISOString().split("T")[0],
+          billUrls: r.bills.map(b => formatUrl(b.fileUrl)).join(" | "),
+          createdAt: r.createdAt.toISOString().split("T")[0]
         }))
       );
 
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader(
-        "Content-Disposition",
-        "attachment; filename=reimbursements.csv"
-      );
+      res.header("Content-Type", "text/csv");
+      res.attachment("reimbursements.csv");
       return res.send(csv);
     }
 
-    /* ================= EXCEL ================= */
+    /* ================= EXCEL EXPORT (CLICKABLE LINKS) ================= */
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Reimbursements");
 
@@ -469,40 +444,50 @@ export const exportReimbursements = async (req, res) => {
       { header: "Title", key: "title", width: 25 },
       { header: "Total Amount", key: "amount", width: 15 },
       { header: "Status", key: "status", width: 15 },
-      { header: "Bills Count", key: "bills", width: 15 },
-      { header: "Bill URLs", key: "billUrls", width: 60 }, 
+      { header: "Bills Count", key: "bills", width: 12 },
+      { header: "Bill URLs", key: "billUrls", width: 45 },
       { header: "Date", key: "date", width: 15 },
     ];
 
     rows.forEach((r) => {
-      sheet.addRow({
+      const row = sheet.addRow({
         employee: `${r.user.firstName} ${r.user.lastName}`,
         title: r.title,
         amount: r.totalAmount,
         status: r.status,
         bills: r.bills.length,
-        billUrls: billUrls(r.bills),
         date: r.createdAt.toISOString().split("T")[0],
       });
+
+      const cell = row.getCell("billUrls");
+
+      // SINGLE BILL
+      if (r.bills.length === 1) {
+        cell.value = {
+          formula: `HYPERLINK("${formatUrl(r.bills[0].fileUrl)}","Open Bill")`,
+          result: "Open Bill"
+        };
+      }
+
+      // MULTIPLE BILLS
+      if (r.bills.length > 1) {
+        const formulas = r.bills
+          .map((b, i) => `HYPERLINK("${formatUrl(b.fileUrl)}","Bill ${i + 1}")`)
+          .join('&CHAR(10)&');
+
+        cell.value = { formula: formulas, result: r.bills.map((b, i) => `Bill ${i + 1}`).join("\n") };
+        cell.alignment = { wrapText: true };
+      }
     });
 
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      "attachment; filename=reimbursements.xlsx"
-    );
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=reimbursements.xlsx");
 
     await workbook.xlsx.write(res);
     res.end();
 
   } catch (err) {
     console.error("[exportReimbursements ERROR]", err);
-    return res.status(500).json({
-      success: false,
-      message: "Export failed",
-    });
+    return res.status(500).json({ success: false, message: "Export failed" });
   }
 };

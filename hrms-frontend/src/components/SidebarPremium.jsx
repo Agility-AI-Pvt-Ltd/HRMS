@@ -65,6 +65,7 @@ const menus = [
   { title: "Reimbursement", icon: <FiFileText />, path: "/reimbursements" },
   { title: "Payroll", icon: <FiCreditCard />, path: "/payroll", adminOnly: true },
   { title: "Notifications", icon: <FiBell />, path: "/notifications" },
+  { title: "Resignation", icon: <FiFileText />, path: "/resignation" },
   {
     title: "Settings",
     icon: <FiSettings />,

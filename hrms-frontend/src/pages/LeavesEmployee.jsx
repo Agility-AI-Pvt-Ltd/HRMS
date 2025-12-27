@@ -75,6 +75,8 @@ export default function Leaves() {
   const [todayApplied, setTodayApplied] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
   const [todayApplyMessage, setTodayApplyMessage] = useState("");
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [todayLoading, setTodayLoading] = useState(false);
 
   const [form, setForm] = useState({
     type: "CASUAL",
@@ -216,46 +218,45 @@ export default function Leaves() {
     load();
   }, []);
 
-  const apply = async () => {
-    try {
-      await api.post("/leaves", {
-        ...form,
-        responsiblePerson: form.responsiblePerson || null,
-      });
+const apply = async () => {
+  setApplyLoading(true);  // ⬅ button text Applying...
+  try {
+    await api.post("/leaves", {
+      ...form,
+      responsiblePerson: form.responsiblePerson || null,
+    });
 
-      setApplied(true);
-      setApplyMessage("Your leave is successfully sent.");
-      setMsg("Your leave is successfully sent.");
-      setMsgType("success");
+    setApplied(true);
+    setApplyMessage("Your leave is successfully sent.");
+    setMsg("Your leave is successfully sent.");
+    setMsgType("success");
 
-      // Button & message reset after 2 seconds
-      setTimeout(() => {
-        setApplied(false);
-        setApplyMessage("");
-      }, 2000);
+    setTimeout(() => {
+      setApplied(false);
+      setApplyMessage("");
+    }, 2000);
 
-      setForm({
-        type: "CASUAL",
-        startDate: "",
-        endDate: "",
-        reason: "",
-        responsiblePerson: "",
-      });
+    setForm({
+      type: "CASUAL",
+      startDate: "",
+      endDate: "",
+      reason: "",
+      responsiblePerson: "",
+    });
 
-      load();
-    } catch (err) {
-      const errorMsg = err.response?.data?.message || "Failed to apply leave";
-      setApplyMessage(errorMsg);
-      setMsg(errorMsg);
-      setMsgType("error");
-      
-      setTimeout(() => {
-        setApplyMessage("");
-      }, 3000);
-    }
-  };
+    load();
+  } catch (err) {
+    const errorMsg = err.response?.data?.message || "Failed to apply leave";
+    setApplyMessage(errorMsg);
+    setMsg(errorMsg);
+    setMsgType("error");
+  } finally {
+    setApplyLoading(false);  // ⬅ important
+  }
+};
 
   const submitTodayLeave = async () => {
+    setTodayLoading(true);  
     const today = new Date().toISOString().slice(0, 10);
 
     try {
@@ -292,7 +293,9 @@ export default function Leaves() {
       setTimeout(() => {
         setTodayApplyMessage("");
       }, 3000);
-    }
+    }finally {
+    setTodayLoading(false);   // << stop loading
+  }
   };
 
   const updateStatus = async (id, status) => {
@@ -434,19 +437,18 @@ export default function Leaves() {
             />
           </div>
           <div className="flex items-center gap-3 mt-6">
-            <button
-              onClick={apply}
-              disabled={applied}
-              className={`px-6 py-3 rounded-xl font-semibold shadow-lg text-white
-                ${
-                  applied
-                    ? "bg-green-600 cursor-default"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                }
-              `}
-            >
-              {applied ? "Applied ✔" : "Apply"}
-            </button>
+       <button
+  onClick={apply}
+  disabled={applyLoading || applied}
+  className={`px-6 py-3 rounded-xl font-semibold shadow-lg text-white
+    ${applied ? "bg-green-600 cursor-default" :
+     applyLoading ? "bg-indigo-400 cursor-wait" :
+     "bg-indigo-600 hover:bg-indigo-700"}
+  `}
+>
+  {applied ? "Applied ✔" : applyLoading ? "Applying..." : "Apply"}
+</button>
+
             {applyMessage && (
               <span className={`text-sm font-medium ${
                 applyMessage.includes("already") || 
@@ -511,15 +513,17 @@ export default function Leaves() {
       </GlassCard>
 
       {showTodayPopup && (
-        <TodayPopup
-          todayForm={todayForm}
-          setTodayForm={setTodayForm}
-          close={() => setShowTodayPopup(false)}
-          submit={submitTodayLeave}
-          employees={employees}
-          todayApplied={todayApplied}
-          todayApplyMessage={todayApplyMessage}
-        />
+  <TodayPopup
+  todayForm={todayForm}
+  setTodayForm={setTodayForm}
+  close={() => setShowTodayPopup(false)}
+  submit={submitTodayLeave}
+  employees={employees}
+  todayApplied={todayApplied}
+  todayApplyMessage={todayApplyMessage}
+  todayLoading={todayLoading}      // <<< required
+/>
+
       )}
     </div>
   );
@@ -533,6 +537,7 @@ function TodayPopup({
   employees,
   todayApplied,
   todayApplyMessage,
+  todayLoading,        // <<< required
 }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm z-50 p-4">
@@ -594,19 +599,18 @@ function TodayPopup({
 
           {/* Submit + Message */}
           <div className="flex items-center gap-3">
-            <button
-              disabled={todayApplied}
-              className={`px-4 py-2 rounded-xl text-white
-                ${
-                  todayApplied
-                    ? "bg-green-600 cursor-default"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                }
-              `}
-              onClick={submit}
-            >
-              {todayApplied ? "Applied ✔" : "Apply"}
-            </button>
+  <button
+  disabled={todayLoading || todayApplied}
+  className={`px-4 py-2 rounded-xl text-white
+    ${todayApplied ? "bg-green-600 cursor-default" :
+     todayLoading ? "bg-indigo-400 cursor-wait" :
+     "bg-indigo-600 hover:bg-indigo-700"}
+  `}
+  onClick={submit}
+>
+  {todayApplied ? "Applied ✔" : todayLoading ? "Applying..." : "Apply"}
+</button>
+
             {todayApplyMessage && (
               <span className={`text-sm font-medium ${
                 todayApplyMessage.includes("already") || 

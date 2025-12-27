@@ -19,6 +19,9 @@ export default function AdminReimbursement() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectId, setRejectId] = useState(null);
 
+ const [actionLoadingId, setActionLoadingId] = useState(null);   // approve
+ const [rejectLoadingId, setRejectLoadingId] = useState(null);   // 🔥 new for reject
+
   const loadAll = async () => {
     try {
       setLoading(true);
@@ -60,16 +63,21 @@ const exportData = async (format) => {
 };
 
   /** Approve OR open reason popup **/
-  const updateStatus = async (id, status) => {
-    if (status === "REJECTED") {
-      setRejectId(id);
-      setRejectOpen(true);
-      return;
-    }
+const updateStatus = async (id, status) => {
+  if (status === "REJECTED") {
+    setRejectId(id);
+    setRejectOpen(true);
+    return;
+  }
 
-    await api.put(`/reimbursement/${id}/status`, { status });
+  try {
+    setActionLoadingId(id);
+    await api.patch(`/reimbursement/${id}/status`, { status });
     loadAll();
-  };
+  } finally {
+    setActionLoadingId(null);
+  }
+};
 
   /** DELETE POPUP **/
   const deleteItem = (id) => {
@@ -89,20 +97,21 @@ const exportData = async (format) => {
   };
 
   /** REJECT WITH REASON **/
-  const submitReject = async (reason) => {
-    try {
-      await api.put(`/reimbursement/${rejectId}/status`, {
-        status: "REJECTED",
-        reason,
-      });
+const submitReject = async (reason)=>{
+  try{
+    setRejectLoadingId(rejectId);   // this row waiting
+    await api.patch(`/reimbursement/${rejectId}/status`,{
+      status:"REJECTED",
+      reason
+    });
 
-      setRejectOpen(false);
-      setRejectId(null);
-      loadAll();
-    } catch (err) {
-      console.log(err);
-    }
-  };
+    setRejectOpen(false);
+    setRejectId(null);
+    loadAll();                     // refresh list
+  }finally{
+    setRejectLoadingId(null);
+  }
+}
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
@@ -198,23 +207,36 @@ const exportData = async (format) => {
                 </p>
 
                 {/* ACTIONS */}
-                {r.status === "PENDING" && (
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      onClick={() => updateStatus(r.id, "APPROVED")}
-                      className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm"
-                    >
-                      Approve
-                    </button>
+{/* ACTIONS */}
+{r.status === "PENDING" && (
+  <div className="flex gap-3 mt-4">
 
-                    <button
-                      onClick={() => updateStatus(r.id, "REJECTED")}
-                      className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
+    {/* APPROVE BUTTON */}
+    <button
+      onClick={()=>{
+        setActionLoadingId(r.id);
+        updateStatus(r.id,"APPROVED");
+      }}
+      disabled={actionLoadingId === r.id}
+      className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm disabled:opacity-50"
+    >
+      {actionLoadingId === r.id ? "Please wait..." : "Approve"}
+    </button>
+
+    {/* REJECT BUTTON - popup first */}
+    <button
+      onClick={()=>{
+        setRejectId(r.id);
+        setRejectOpen(true);
+      }}
+      disabled={rejectLoadingId === r.id}
+      className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm disabled:opacity-50"
+    >
+      {rejectLoadingId === r.id ? "Processing..." : "Reject"}
+    </button>
+
+  </div>
+)}
 
                 {r.status !== "PENDING" && (
                   <div className="mt-3">

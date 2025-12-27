@@ -48,6 +48,73 @@ export const sendRequestNotificationMail = async ({
   });
 };
 
+export const sendResignationMail = async ({
+  to,
+  employeeName,
+  lastWorking,
+  reason,
+  subject = "New Resignation Request Submitted"
+}) => {
+  await transporter.sendMail({
+    from: `"HRMS" <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    html: `
+      <div style="font-family:Arial; line-height:1.6;">
+        <h2>Resignation Request</h2>
+
+        <p><b>Employee:</b> ${employeeName}</p>
+        <p><b>Last Working Day:</b> ${new Date(lastWorking).toLocaleDateString()}</p>
+        
+        ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ""}
+
+        <p>
+          Please login to HRMS to review this resignation request.<br/>
+          <a href="${process.env.FRONTEND_URL}" style="color:#4f46e5;font-weight:bold;">
+            Open HRMS Portal
+          </a>
+        </p>
+
+        <br/>
+        <p>Regards,<br/>HRMS System</p>
+      </div>
+    `
+  });
+};
+
+export const sendResignationStatusMail = async ({
+  to,
+  employeeName,
+  status,
+  reason,
+}) => {
+  await transporter.sendMail({
+    from: `"HRMS" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `Resignation ${status}`,
+    html: `
+      <div style="font-family:Arial; line-height:1.6;">
+        <h2>Resignation Status Update</h2>
+
+        <p><b>Employee:</b> ${employeeName}</p>
+        <p><b>Status:</b> ${status}</p>
+        ${status === "REJECTED" ? `<p><b>Reason:</b> ${reason}</p>` : ""}
+
+        <p>
+          Login to HRMS for more details:
+          <a href="${process.env.FRONTEND_URL}" style="color:#4f46e5;font-weight:bold;">
+            Open HRMS Portal
+          </a>
+        </p>
+
+        <br/>
+        <p>Regards,<br/>HRMS System</p>
+      </div>
+    `
+  });
+};
+
+
 export const sendUserCredentialsMail = async ({
   to,
   name,

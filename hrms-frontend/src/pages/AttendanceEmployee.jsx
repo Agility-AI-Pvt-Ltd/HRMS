@@ -314,12 +314,11 @@ if (todayLog?.status === "PRESENT") newCal[todayIso] = "PRESENT";
 // ========================= END OF PART 1 ===========================
 // ========================= PART 2 — UI (FINAL WITH KPI BOX) ===========================
 return (
-  <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 
-  dark:from-[#0d0f12] dark:to-[#1a1c20]">
+  <div className="min-h-screen">
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
 
       {/* HEADER */}
-      <div className="bg-white dark:bg-[#15171c] rounded-2xl shadow-xl 
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl 
       p-5 sm:p-6 border border-gray-200 dark:border-[#2a2c33]">
 
         <div className="flex flex-col lg:flex-row justify-between gap-5">
@@ -385,7 +384,7 @@ return (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
         {/* PRESENT */}
-        <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-[#15171c] border dark:border-[#2a2c33]">
+        <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-gray-900 border dark:border-[#2a2c33]">
           <div className="text-xl font-bold text-green-600 dark:text-green-400">
             {kpi.present}
           </div>
@@ -395,7 +394,7 @@ return (
         </div>
 
         {/* LEAVE */}
-        <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-[#15171c] border dark:border-[#2a2c33]">
+        <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-gray-900 border dark:border-[#2a2c33]">
           <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
             {kpi.leave}
           </div>
@@ -405,7 +404,7 @@ return (
         </div>
 
         {/* WFH */}
-        <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-[#15171c] border dark:border-[#2a2c33]">
+        <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-gray-900 border dark:border-[#2a2c33]">
           <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
             {kpi.wfh}
           </div>
@@ -417,7 +416,7 @@ return (
       </div>
 
       {/* QUICK ACTIONS */}
-      <div className="bg-white dark:bg-[#15171c] p-5 sm:p-6 rounded-2xl shadow-xl 
+      <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-xl 
       border border-gray-300 dark:border-[#2a2c33]">
         <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
           Quick Actions
@@ -441,7 +440,7 @@ return (
       </div>
 
       {/* CALENDAR */}
-      <div className="bg-white dark:bg-[#15171c] p-5 sm:p-6 rounded-2xl shadow-xl 
+      <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-xl 
       border border-gray-300 dark:border-[#2a2c33]">
 
         <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-2">
@@ -461,7 +460,7 @@ return (
             {yearMonths.map((m) => (
               <div 
                 key={m.month} 
-                className="p-4 rounded-xl border shadow bg-white dark:bg-[#1b1d22] 
+                className="p-4 rounded-xl border shadow bg-white dark:bg-gray-800 
                 dark:border-[#2a2c33]"
               >
                 <h3 className="text-lg font-bold mb-3 text-center dark:text-white">
@@ -521,7 +520,7 @@ return (
                 <div
                   key={d.iso}
                   className={`p-3 sm:p-4 rounded-xl text-center shadow border 
-                  dark:border-[#2a2c33] dark:bg-[#1d1f24] transition 
+                  dark:border-[#2a2c33] dark:bg-gray-800 transition 
                   ${
                     d.status === "PRESENT"
                       ? "bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200"
@@ -554,7 +553,7 @@ return (
       </div>
 
       {/* DAILY LOGS */}
-      <div className="bg-white dark:bg-[#15171c] p-5 sm:p-6 rounded-2xl shadow-xl 
+      <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-xl 
       border border-gray-300 dark:border-[#2a2c33]">
 
         <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
@@ -570,7 +569,7 @@ return (
                 setLogFilter((p) => ({ ...p, start: e.target.value }));
                 setPage(1);
               }}
-              className="px-2 py-1 text-sm rounded-lg border dark:border-[#2a2c33] dark:bg-[#1b1d22] dark:text-white"
+              className="px-2 py-1 text-sm rounded-lg border dark:border-[#2a2c33] dark:bg-gray-800 dark:text-white"
             />
 
             <span className="dark:text-gray-300">→</span>
@@ -582,7 +581,7 @@ return (
               onChange={(e) =>
                 setLogFilter((p) => ({ ...p, end: e.target.value }))
               }
-              className="px-2 py-1 text-sm rounded-lg border dark:border-[#2a2c33] dark:bg-[#1b1d22] dark:text-white"
+              className="px-2 py-1 text-sm rounded-lg border dark:border-[#2a2c33] dark:bg-gray-800 dark:text-white"
             />
 
             {(logFilter.start || logFilter.end) && (
@@ -614,7 +613,7 @@ return (
               <div
                 key={log.id}
                 className="p-4 rounded-xl border shadow 
-                bg-white dark:bg-[#1b1d22] dark:border-[#2a2c33]
+                bg-white dark:bg-gray-800 dark:border-[#2a2c33]
                 flex flex-col sm:flex-row justify-between gap-3"
               >
                 <div>

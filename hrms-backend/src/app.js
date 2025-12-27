@@ -4,7 +4,8 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import "express-async-errors";
-
+import path from "path"; 
+const __dirname = path.resolve(); 
 // Routes
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -16,6 +17,7 @@ import userRoutes from "./routes/userRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import reimbursementRoutes from "./routes/reimbursementRoutes.js";
 import managerRoutes from "./routes/managerRoutes.js";
+import resignationRoutes from "./routes/resignationRoutes.js";
 
 
 const app = express();
@@ -70,7 +72,7 @@ app.use(cookieParser());
 /* ============================================================
    STATIC FILE SERVING FOR PDF SLIPS
 ============================================================ */
-app.use("/uploads", express.static("uploads")); 
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Now PDF slips can be accessed via:
 // http://localhost:4000/uploads/slips/<filename>.pdf
 
@@ -87,6 +89,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/reimbursement", reimbursementRoutes);
 app.use("/api/manager", managerRoutes);
+app.use("/api/resignation", resignationRoutes);
 
 /* ============================================================
    HEALTH CHECK
