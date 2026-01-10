@@ -6,6 +6,63 @@ import { FiPlusCircle, FiCalendar, FiClock } from "react-icons/fi";
 import EmployeeDropdown from "../components/EmployeeDropdown";
 import ConfirmDelPopup from "../components/ConfirmDelPopup";
 
+function checkHolidayOrWeekOff(dateISO, holidays = [], weekOff) {
+  const d = new Date(dateISO);
+  const dayName = d.toLocaleDateString("en-US", { weekday: "long" });
+
+  const isHoliday = holidays.some(h => h.date === dateISO);
+
+  if (isHoliday) {
+    return { blocked: true, reason: "HOLIDAY" };
+  }
+
+  const isWeekOff =
+    weekOff &&
+    (
+      (weekOff.isFixed && weekOff.offDay === dayName) ||
+      (!weekOff.isFixed && weekOff.offDate === dateISO)
+    );
+
+  if (isWeekOff) {
+    return { blocked: true, reason: "WEEK_OFF" };
+  }
+
+  return { blocked: false };
+}
+
+function getChargeableLeaveDays(leaves, holidays = [], weekOff) {
+  const dayMap = {};
+
+  leaves.forEach((l) => {
+    let cur = new Date(l.startDate);
+    const end = new Date(l.endDate);
+    const value = l.type === "HALF_DAY" ? 0.5 : 1;
+
+    while (cur <= end) {
+      const iso = cur.toISOString().slice(0, 10);
+      const dayName = cur.toLocaleDateString("en-US", { weekday: "long" });
+
+      const isHoliday = holidays.some(h => h.date === iso);
+
+      const isWeekOff =
+        weekOff &&
+        (
+          (weekOff.isFixed && weekOff.offDay === dayName) ||
+          (!weekOff.isFixed && weekOff.offDate === iso)
+        );
+
+      // ⛔ skip holiday & weekoff
+      if (!isHoliday && !isWeekOff) {
+        dayMap[iso] = Math.max(dayMap[iso] || 0, value);
+      }
+
+      cur.setDate(cur.getDate() + 1);
+    }
+  });
+
+  return Object.values(dayMap).reduce((a, b) => a + b, 0);
+}
+
 // --- Merge overlapping leave date ranges (unique days) ---
 function getUniqueLeaveDays(leaves) {
   const ranges = leaves.map(l => ({
@@ -26,7 +83,6 @@ function getUniqueLeaveDays(leaves) {
       merged.push(curr);
     }
   }
-
   let total = 0;
   for (const r of merged) {
     const diff = Math.floor((r.end - r.start) / (1000 * 60 * 60 * 24)) + 1;
@@ -52,7 +108,6 @@ function getUniqueLeaveUnits(leaves) {
       cur.setDate(cur.getDate() + 1);
     }
   });
-
   return Object.values(dayMap).reduce((a, b) => a + b, 0);
 }
 
@@ -80,6 +135,9 @@ export default function Leaves() {
   const [todayLoading, setTodayLoading] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+
+  const [holidaysList, setHolidaysList] = useState([]);
+  const [weekOff, setWeekOff] = useState(null);
 
   const calcLeaveDays = (startDate, endDate) => {
   if (!startDate || !endDate) return 0;
@@ -124,7 +182,6 @@ export default function Leaves() {
     if (l.type === "HALF_DAY") return 0.5;
     return getDays(l);
   };
-  
 const confirmDeleteLeave = async () => {
   try {
     await api.delete(`/leaves/${deleteId}`);
@@ -141,17 +198,19 @@ const confirmDeleteLeave = async () => {
 };
 
   // ⭐ Unique approved leave days (excluding WFH and UNPAID)
-  const approvedLeaveDays = getUniqueLeaveUnits(
+const approvedLeaveDays = React.useMemo(() => {
+  return getChargeableLeaveDays(
     leaves.filter(
-      (l) =>
+      l =>
         l.status === "APPROVED" &&
         l.type !== "WFH" &&
         l.type !== "UNPAID" &&
-        l.type !== "COMP_OFF" &&
-        new Date(l.startDate) >= new Date(yearStart) &&
-        new Date(l.endDate) <= new Date(yearEnd)
-    )
+        l.type !== "COMP_OFF"
+    ),
+    holidaysList,
+    weekOff
   );
+}, [leaves, holidaysList, weekOff]);
 
   // ⭐ Applied leave days (all leaves excluding WFH)
   const appliedLeaveDays = getUniqueLeaveUnits(
@@ -203,6 +262,36 @@ const confirmDeleteLeave = async () => {
 
   // ⭐ Remaining leaves
   const remainingLeaves = Math.max(TOTAL_YEARLY_LEAVES - approvedLeaveDays, 0);
+    useEffect(() => {
+  const loadHolidays = async () => {
+    try {
+      const res = await api.get("/holidays");
+      setHolidaysList(
+        res.data.holidays.map(h => ({
+          date: h.date.slice(0, 10),
+          title: h.title
+        }))
+      );
+    } catch (e) {
+      console.error("Failed to load holidays", e);
+    }
+  };
+
+  loadHolidays();
+}, []);
+
+useEffect(() => {
+  const loadWeekOff = async () => {
+    try {
+      const res = await api.get("/weekly-off/me");
+      setWeekOff(res.data.weekOff);
+    } catch (e) {
+      console.error("Failed to load weekoff", e);
+    }
+  };
+
+  loadWeekOff();
+}, []);
 
   useEffect(() => {
     if (!msg) return;
@@ -247,8 +336,28 @@ const confirmDeleteLeave = async () => {
 
 const apply = async () => {
   
-  const days = calcLeaveDays(form.startDate, form.endDate);
+const days = calcLeaveDays(form.startDate, form.endDate);
 
+// 🚫 single-day leave check
+if (days === 1) {
+  const dateCheck = checkHolidayOrWeekOff(
+    form.startDate,
+    holidaysList,
+    weekOff
+  );
+
+  if (dateCheck.blocked) {
+    const message =
+      dateCheck.reason === "HOLIDAY"
+        ? "Selected date is a Holiday. Leave cannot be applied."
+        : "Selected date is a Week-Off. Leave cannot be applied.";
+
+    setApplyMessage(message);
+    setMsg(message);
+    setMsgType("error"); // 🔴 red
+    return;
+  }
+}
   // 🔥 RULE 1: WFH → reason compulsory (any duration)
   if (form.type === "WFH" && !form.reason.trim()) {
     setApplyMessage("Reason is mandatory for Work From Home");
@@ -310,6 +419,22 @@ const apply = async () => {
     setTodayLoading(true);  
     const today = new Date().toISOString().slice(0, 10);
 
+// 🚫 BLOCK if today is holiday or weekoff
+const todayCheck = checkHolidayOrWeekOff(today, holidaysList, weekOff);
+
+if (todayCheck.blocked) {
+  const message =
+    todayCheck.reason === "HOLIDAY"
+      ? "Today is a Holiday. Leave cannot be applied."
+      : "Today is a Week-Off. Leave cannot be applied.";
+
+  setTodayApplyMessage(message);
+  setMsg(message);
+  setMsgType("error");   // 🔴 red color
+  setTodayLoading(false);
+  return;
+}
+
     if (todayForm.type === "WFH" && !todayForm.reason.trim()) {
   setTodayApplyMessage("Reason is mandatory for Work From Home");
   setMsg("Reason is mandatory for Work From Home");
@@ -325,6 +450,7 @@ const apply = async () => {
        setTodayLoading(false); 
        return;
     }
+    
 
     try {
       await api.post("/leaves", {
@@ -395,46 +521,11 @@ const apply = async () => {
 
       {!isAdmin && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard
-            icon={<FiCalendar className="text-blue-500" />}
-            title="Total Leave+Half-Days Applied"
-            value={appliedLeaveDays}
-          />
-          <StatCard
-            icon={<FiClock className="text-green-500" />}
-            title="Approved Leave Days"
-            value={approvedLeaveDays}
-          />
-          <StatCard
-            icon={<FiPlusCircle className="text-purple-500" />}
-            title="WFH Days Applied"
-            value={totalWFHDays}
-          />
-          <StatCard
-            icon={<FiClock className="text-blue-500" />}
-            title="Approved WFH Days"
-            value={approvedWFHDays}
-          />
-          <StatCard
-            icon={<FiCalendar className="text-orange-500" />}
-            title="Half Day Applied"
-            value={totalAppliedHalfDay}
-          />
-          <StatCard
-            icon={<FiClock className="text-green-500" />}
-            title="Half Day Approved"
-            value={approvedHalfDay}
-          />
-          <StatCard
-          icon={<FiClock className="text-teal-500" />}
-          title="Comp-Off Balance"
-          value={user?.compOffBalance ?? 0}
-          />
-          <StatCard
-            icon={<FiCalendar className="text-red-500" />}
-            title="Remaining Leaves"
-            value={`${remainingLeaves} / ${TOTAL_YEARLY_LEAVES}`}
-          />
+          <StatCard icon={<FiClock className="text-green-500" />} title="Approved Leave Days"  value={approvedLeaveDays} />
+          <StatCard icon={<FiClock className="text-blue-500" />} title="Approved WFH Days" value={approvedWFHDays}/>
+          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved" value={approvedHalfDay} />
+          <StatCard icon={<FiClock className="text-teal-500" />} title="Comp-Off Balance" value={user?.compOffBalance ?? 0}/>
+          <StatCard icon={<FiCalendar className="text-red-500" />} title="Remaining Leaves" value={`${remainingLeaves} / ${TOTAL_YEARLY_LEAVES}`}/>
         </div>
       )}
 
@@ -442,10 +533,7 @@ const apply = async () => {
         <GlassCard>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-semibold">Apply for Leave/WFH</h3>
-            <button
-              onClick={() => setShowTodayPopup(true)}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white shadow"
-            >
+            <button onClick={() => setShowTodayPopup(true)} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white shadow">
               Apply Today Leave/WFH
             </button>
           </div>
@@ -472,19 +560,12 @@ const apply = async () => {
                 type="date"
                 className="p-3 rounded-xl border dark:bg-gray-900 shadow"
                 value={form.startDate}
-                onChange={(e) =>
-                  setForm({ ...form, startDate: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
               />
             </div>
             <div className="flex flex-col gap-1">
               <label className="font-medium text-gray-600">End Date</label>
-              <input
-                type="date"
-                className="p-3 rounded-xl border dark:bg-gray-900 shadow"
-                value={form.endDate}
-                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              />
+              <input type="date" className="p-3 rounded-xl border dark:bg-gray-900 shadow" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
             </div>
           </div>
           <div className="mt-4">
@@ -539,6 +620,8 @@ const apply = async () => {
                 applyMessage.includes("Error") ||
                 applyMessage.includes("Half day leave must be for a single date")||
                 applyMessage.includes("Not enough Comp-Off balance") ||
+                applyMessage.includes("Holiday") ||
+                applyMessage.includes("Week-Off")||
                 applyMessage.includes("don't have Comp-Off balance")
                   ? "text-red-600"
                   : "text-green-600"
@@ -718,6 +801,8 @@ function TodayPopup({
                 todayApplyMessage.includes("Failed") || 
                 todayApplyMessage.includes("Error") ||
                 todayApplyMessage.includes("Half day leave must be for a single date")||
+                todayApplyMessage.includes("Holiday") ||
+                todayApplyMessage.includes("Week-Off")||
                 todayApplyMessage.includes("Not enough Comp-Off balance") ||
                 todayApplyMessage.includes("don't have Comp-Off balance")
 
@@ -771,9 +856,11 @@ function LeaveItem({ l, isAdmin, updateStatus, onDelete }) {
           )}
         </div>
 
-        <div className="text-sm text-gray-500">
-          {l.startDate?.slice(0, 10)} → {l.endDate?.slice(0, 10)}
-        </div>
+<div className="text-sm text-gray-500">
+  {l.startDate?.slice(0, 10) === l.endDate?.slice(0, 10)
+    ? l.startDate?.slice(0, 10)
+    : `${l.startDate?.slice(0, 10)} → ${l.endDate?.slice(0, 10)}`}
+</div>
 
         <div className="text-xs text-gray-400">{getDisplayDays()}</div>
 
@@ -813,14 +900,7 @@ function LeaveItem({ l, isAdmin, updateStatus, onDelete }) {
 )}
      <div className="flex items-center gap-3">
         <span
-          className={`px-4 py-1 rounded-full text-white text-sm font-medium ${
-            l.status === "APPROVED"
-              ? "bg-green-600"
-              : l.status === "REJECTED"
-              ? "bg-red-600"
-              : "bg-yellow-500"
-          }`}
-        >
+          className={`px-4 py-1 rounded-full text-white text-sm font-medium ${ l.status === "APPROVED" ? "bg-green-600" : l.status === "REJECTED"  ? "bg-red-600"  : "bg-yellow-500"  }`} >
           {l.status}
         </span>
       </div>

@@ -17,39 +17,93 @@ const getLeaveTypeName = (type) => {
   return typeNames[type] || "Leave";
 };
 
+const toISO = (d) => {
+  const x = new Date(d);
+  return (
+    x.getFullYear() +
+    "-" +
+    String(x.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(x.getDate()).padStart(2, "0")
+  );
+};
+
+// 🔥 MAIL DATE FORMATTER (single date vs range)
+const formatMailDateRange = (start, end) => {
+  const s = toISO(start);
+  const e = toISO(end);
+
+  // same date / today
+  if (s === e) {
+    return `Date: ${s}`;
+  }
+
+  // date range
+  return `From: ${s} → To: ${e}`;
+};
+const formatResponsiblePerson = (user) => {
+  if (!user) return null;
+  return `Responsibility Given To: ${user.firstName} ${user.lastName || ""}`.trim();
+};
+
 async function syncAttendanceWithLeave(leave) {
   const start = new Date(leave.startDate);
   const end = new Date(leave.endDate);
+
+  const weekOff = await prisma.weeklyOff.findFirst({
+    where: { userId: leave.userId }
+  });
+
+  const holidays = await prisma.holiday.findMany({
+    where: {
+      date: { gte: start, lte: end }
+    }
+  });
 
   let cur = new Date(start);
   cur.setHours(0, 0, 0, 0);
 
   while (cur <= end) {
-    const existing = await prisma.attendance.findFirst({
-      where: {
-        userId: leave.userId,
-        date: cur
-      }
-    });
+    const iso = toISO(cur);
+    const dayName = cur.toLocaleDateString("en-US", { weekday: "long" });
 
-    if (existing) {
-      // ✅ Case 1: Employee already checked-in
-      await prisma.attendance.update({
-        where: { id: existing.id },
-        data: {
-          status: leave.type,        // WFH / HALF_DAY / PAID / etc
-          lateHalfDayEligible: false
-        }
-      });
-    } else {
-      // ✅ Case 2: No check-in → create attendance (OLD BEHAVIOUR)
-      await prisma.attendance.create({
-        data: {
+    const isHoliday = holidays.some(
+      h => toISO(h.date) === iso
+    );
+
+    const isWeekOff =
+      weekOff &&
+      (
+        (weekOff.isFixed && weekOff.offDay === dayName) ||
+        (!weekOff.isFixed && weekOff.offDate && toISO(weekOff.offDate) === iso)
+      );
+
+    // ❌ Skip holiday & weekly off completely
+    if (!isHoliday && !isWeekOff) {
+      const existing = await prisma.attendance.findFirst({
+        where: {
           userId: leave.userId,
-          date: cur,
-          status: leave.type        // show leave directly
+          date: cur
         }
       });
+
+      if (existing) {
+        await prisma.attendance.update({
+          where: { id: existing.id },
+          data: {
+            status: leave.type,
+            lateHalfDayEligible: false
+          }
+        });
+      } else {
+        await prisma.attendance.create({
+          data: {
+            userId: leave.userId,
+            date: cur,
+            status: leave.type
+          }
+        });
+      }
     }
 
     cur.setDate(cur.getDate() + 1);
@@ -79,44 +133,7 @@ export const createLeave = async (req, res) => {
     if (isHalfDay(type) && startDate !== endDate) {
       return res.status(400).json({ success: false, message: "Half Day must be for a single date" });
     }
-// ================== HOLIDAY CHECK ==================
-const holidays = await prisma.holiday.findMany({
-  where:{
-    date:{ gte:new Date(startDate), lte:new Date(endDate) }
-  }
-});
-
-if(holidays.length>0){
-  return res.status(400).json({
-    success:false,
-    message:`Cannot apply leave on holiday (${holidays[0].title})`
-  });
-}
-
-// ================== WEEKOFF CHECK ==================
-const weekOff = await prisma.weeklyOff.findFirst({ where:{ userId:req.user.id } });
-
-if(weekOff){
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  let cur = new Date(start);
-
-  while(cur<=end){
-    const iso = cur.toISOString().split("T")[0];
-    const dayName = getDayName(cur);
-
-    const isFixed = weekOff.isFixed && weekOff.offDay===dayName;
-    const isSpecial = !weekOff.isFixed && weekOff.offDate===iso;
-
-    if(isFixed || isSpecial){
-      return res.status(400).json({
-        success:false,
-        message:`Cannot apply leave on Weekly Off (${dayName})`
-      });
-    }
-    cur.setDate(cur.getDate()+1);
-  }
-}
+    
     const requestStart = new Date(startDate);
     const requestEnd = new Date(endDate);
     // 🔥 RULE: 3+ DAYS LEAVE → REASON COMPULSORY
@@ -209,12 +226,12 @@ if (responsiblePerson) {
         subject:"New Leave Request Submitted",
         title:"Leave / WFH / Half-Day Request",
         employeeName:`${leave.user.firstName} ${leave.user.lastName||""}`,
-        details:[
-          `Type: ${getLeaveTypeName(type)}`,
-          `From: ${startDate}`,
-          `To: ${endDate}`,
-          reason && `Reason: ${reason}`
-        ].filter(Boolean)
+details:[
+  `Type: ${getLeaveTypeName(type)}`,
+  formatMailDateRange(requestStart, requestEnd),
+  formatResponsiblePerson(leave.responsiblePerson),
+  reason && `Reason: ${reason}`
+].filter(Boolean)
       });
     }catch(e){ console.log("Mail fail:",e.message); }
 
@@ -567,10 +584,11 @@ isEmployeeDeleted: false,
     status: finalStatus,
     rejectReason: finalStatus==="REJECTED" ? reason||"" : null
   },
-  include:{ user:true }
-    });
-    
-    
+ include:{
+  user: true,
+  responsiblePerson: true   // ✅ REQUIRED
+}
+}); 
     if (finalStatus === "APPROVED") {
     await syncAttendanceWithLeave(updated);
   }
@@ -584,13 +602,13 @@ isEmployeeDeleted: false,
         subject:`Leave Request ${finalStatus}`,
         title:"Leave Status Update",
         employeeName:`${updated.user.firstName} ${updated.user.lastName}`,
-        details:[
-          `Type: ${getLeaveTypeName(updated.type)}`,
-          `From: ${updated.startDate.toDateString()}`,
-          `To: ${updated.endDate.toDateString()}`,
-          `Status: ${finalStatus}`,
-          finalStatus==="REJECTED" && `Reason: ${reason||"Not specified"}`
-        ].filter(Boolean)
+details:[
+  `Type: ${getLeaveTypeName(updated.type)}`,
+  formatMailDateRange(updated.startDate, updated.endDate),
+  formatResponsiblePerson(updated.responsiblePerson), // ✅ ADDED
+  `Status: ${finalStatus}`,
+  finalStatus==="REJECTED" && `Reason: ${reason||"Not specified"}`
+].filter(Boolean)
       });
     } catch(e){ console.log("Mail fail:",e.message); }
 
