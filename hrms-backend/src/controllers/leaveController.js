@@ -1,6 +1,8 @@
 import prisma from "../prismaClient.js";
 import { sendRequestNotificationMail } from "../utils/sendMail.js";
 import { getAdminAndManagers } from "../utils/getApprovers.js";
+import { creditMonthlyLeaveIfNeeded } from "../utils/leaveCredit.js";
+
 
 const isHalfDay = (type) => type === "HALF_DAY";
 const getDayName = (d) => new Date(d).toLocaleDateString("en-US",{weekday:"long"});
@@ -114,6 +116,13 @@ async function syncAttendanceWithLeave(leave) {
    CREATE LEAVE — Employees only
 -------------------------------------------------------- */
 export const createLeave = async (req, res) => {
+  // 🔄 CREDIT MONTHLY LEAVE (AUTO)
+const currentUser  = await prisma.user.findUnique({
+  where: { id: req.user.id }
+});
+
+await creditMonthlyLeaveIfNeeded(currentUser, prisma);
+
   try {
    const { type, startDate, endDate, reason, responsiblePerson } = req.body;
 
@@ -122,8 +131,8 @@ export const createLeave = async (req, res) => {
     }
     // ⛔ COMP OFF but balance is zero
     if (type === "COMP_OFF") {
-     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-     if (!user || user.compOffBalance <= 0) {
+     const compUser  = await prisma.user.findUnique({ where: { id: req.user.id } });
+     if (!compUser || compUser.compOffBalance <= 0) {
        return res.status(400).json({
          success: false,
          message: "Insufficient Comp-Off balance"
@@ -171,6 +180,17 @@ if (type === "WFH" && !reason?.trim()) {
       });
     }
 
+const isChargeableLeave = !["WFH", "UNPAID", "COMP_OFF"].includes(type);
+// 🔐 BALANCE CHECK
+const daysRequested =
+  !isChargeableLeave ? 0  : type === "HALF_DAY"  ? 0.5 : Math.floor((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+
+if (currentUser.leaveBalance < daysRequested) {
+  return res.status(400).json({
+    success: false,
+    message: `Insufficient Leave Balance. Available: ${currentUser.leaveBalance}`
+  });
+}
     /* Get all managers */
     const employee = await prisma.user.findUnique({
       where:{ id:req.user.id },
@@ -212,6 +232,15 @@ if (responsiblePerson) {
       },
       include:{ user:true , responsiblePerson: true   }  // <-- IMPORTANT FIX (mail needs name)
     });
+    
+const updatedUser = await prisma.user.findUnique({
+  where: { id: req.user.id },
+  select: {
+    leaveBalance: true,
+    lastLeaveCredit: true,
+    compOffBalance: true,
+  }
+});
 
     /* Create approvals */
     await prisma.leaveApproval.createMany({
@@ -238,7 +267,8 @@ details:[
     return res.json({
       success:true,
       message:`Your ${getLeaveTypeName(type)} request submitted successfully`,
-      leaveId:leave.id
+      leaveId:leave.id,
+      updatedUser 
     });
 
   } catch (error) {
@@ -589,10 +619,32 @@ isEmployeeDeleted: false,
   responsiblePerson: true   // ✅ REQUIRED
 }
 }); 
-    if (finalStatus === "APPROVED") {
-    await syncAttendanceWithLeave(updated);
-  }
-    
+// =====================================================
+// ✅ DEDUCT LEAVE BALANCE (ONLY ON FINAL APPROVAL)
+// =====================================================
+const isChargeableLeave = !["WFH", "UNPAID", "COMP_OFF"].includes(updated.type);
+if (finalStatus === "APPROVED") {
+  await syncAttendanceWithLeave(updated);
+}
+if (finalStatus === "APPROVED" && isChargeableLeave) {
+  const leaveDays =
+    updated.type === "HALF_DAY"
+      ? 0.5
+      : Math.floor(
+          (updated.endDate - updated.startDate) /
+            (1000 * 60 * 60 * 24)
+        ) + 1;
+
+  await prisma.user.update({
+    where: { id: updated.userId },
+    data: {
+      leaveBalance: {
+        decrement: leaveDays
+      }
+    }
+  });
+}
+  
     // =====================================================
     // 📩 Email Notification
     // =====================================================

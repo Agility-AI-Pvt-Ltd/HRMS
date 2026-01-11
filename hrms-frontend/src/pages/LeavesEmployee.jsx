@@ -316,7 +316,6 @@ useEffect(() => {
       setLoading(true);
       const r = await api.get("/leaves");
       setLeaves(r.data.leaves || []);
-
       try {
         const u = await api.get("/users");
         setEmployees(u.data.users || []);
@@ -379,13 +378,21 @@ if (days === 1) {
    setApplyMessage("Not enough Comp-Off balance");
    return;
   }
-  setApplyLoading(true);  // ⬅ button text Applying...
+  setApplyLoading(true); 
+   // ⬅ button text Applying...
   try {
-    await api.post("/leaves", {
+    const res = await api.post("/leaves", {
       ...form,
       responsiblePerson: form.responsiblePerson || null,
     });
-
+    
+    // ✅ UPDATE USER BALANCE WITHOUT REFRESH
+    if (res.data.updatedUser) {
+      useAuthStore.getState().setUser({
+        ...user,
+        ...res.data.updatedUser,
+      });
+    }
     setApplied(true);
     setApplyMessage("Your leave is successfully sent.");
     setMsg("Your leave is successfully sent.");
@@ -525,6 +532,7 @@ if (todayCheck.blocked) {
           <StatCard icon={<FiClock className="text-blue-500" />} title="Approved WFH Days" value={approvedWFHDays}/>
           <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved" value={approvedHalfDay} />
           <StatCard icon={<FiClock className="text-teal-500" />} title="Comp-Off Balance" value={user?.compOffBalance ?? 0}/>
+          <StatCard icon={<FiCalendar className="text-green-600" />} title="Available Leave Balance"  value={user?.leaveBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-red-500" />} title="Remaining Leaves" value={`${remainingLeaves} / ${TOTAL_YEARLY_LEAVES}`}/>
         </div>
       )}

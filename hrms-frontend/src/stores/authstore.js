@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
+import api from "../api/axios";
 
 const useAuthStore = create((set) => ({
   user: null,
@@ -37,10 +38,10 @@ const useAuthStore = create((set) => ({
       const decoded = jwtDecode(token);
 
       set({
-        user: {
-          id: decoded.sub || decoded.id, // ✅ IMPORTANT FIX
-          role: decoded.role,
-        },
+        // user: {
+        //   id: decoded.sub || decoded.id, // ✅ IMPORTANT FIX
+        //   role: decoded.role,
+        // },
         accessToken: token,
         loading: false,
       });
@@ -70,19 +71,13 @@ const useAuthStore = create((set) => ({
   
 refreshUser: async () => {
   try {
-    const res = await fetch("/users/me", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("hrms_access")}`,
-      },
-    });
+    const res = await api.get("/users/me");
 
-    const data = await res.json();
-
-    if (data.success) {
+    if (res.data.success) {
       set((state) => ({
         user: {
           ...state.user,
-          ...data.user,   // ✅ ONLY THIS
+          ...res.data.user,
         },
       }));
     }

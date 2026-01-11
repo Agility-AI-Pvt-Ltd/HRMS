@@ -1,6 +1,7 @@
 import prisma from "../prismaClient.js";
 import bcrypt from "bcryptjs";
 import { sendUserCredentialsMail } from "../utils/sendMail.js";
+import { creditMonthlyLeaveIfNeeded } from "../utils/leaveCredit.js";
 const TOTAL_YEARLY_LEAVES = 21;
 
 /* ============================================================
@@ -8,7 +9,7 @@ const TOTAL_YEARLY_LEAVES = 21;
 ============================================================ */
 export const getMe = async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: {
         id: true,
@@ -16,6 +17,9 @@ export const getMe = async (req, res) => {
         firstName: true,
         lastName: true,
         role: true,
+
+        leaveBalance: true,
+        lastLeaveCredit: true,
         compOffBalance: true,
         // 🔴 legacy (keep)
         departmentId: true,
@@ -51,6 +55,48 @@ export const getMe = async (req, res) => {
       });
     }
 
+    // 🔥 ⭐ MONTHLY LEAVE CREDIT (MAIN FIX)
+    const credited = await creditMonthlyLeaveIfNeeded(user, prisma);
+
+    // 🔄 re-fetch if credit happened
+    if (credited > 0) {
+      user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+
+          leaveBalance: true,
+          lastLeaveCredit: true,
+          compOffBalance: true,
+
+          departmentId: true,
+
+          departments: {
+            include: {
+              department: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+
+          managedDepartments: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+
+          position: true,
+          salary: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    }
     // 🔥 ADD THIS FLAG
     const isManager = user.managedDepartments.length > 0;
 
@@ -60,6 +106,7 @@ export const getMe = async (req, res) => {
         ...user,
         isManager, // 👈 ⭐ IMPORTANT
       },
+      credited,
     });
 
   } catch (err) {
