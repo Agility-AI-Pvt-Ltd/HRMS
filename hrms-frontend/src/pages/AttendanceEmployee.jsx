@@ -248,6 +248,7 @@ if (todayLog?.status === "PRESENT") {
 }
 
 // ⭐ If WeekOff day + Check-In exists → Show PRESENT instead of ABSENT
+// ⭐ If WeekOff day + Check-In exists → Show PRESENT or WEEKOFF in UI
 if (weekOff) {
   Object.keys(newCal).forEach(date => {
     const dayName = new Date(date).toLocaleDateString("en-US", { weekday: "long" });
@@ -261,20 +262,14 @@ if (weekOff) {
 
     if (!isWeekOffDate) return;
 
-    // 🟢 1️⃣ Highest priority: WEEKOFF_PRESENT
+    // 🟢 Highest priority
     if (log?.status === "WEEKOFF_PRESENT") {
       newCal[date] = "WEEKOFF_PRESENT";
       return;
     }
 
-    // 🔥 2️⃣ ADD THIS: WeekOff + Late → HALF_DAY_PENDING
-    if (log?.status === "HALF_DAY_PENDING") {
-      newCal[date] = "HALF_DAY_PENDING";
-      return;
-    }
-
     // ⛔ Approved statuses should NEVER be overridden
-    if (["WFH", "LEAVE", "HALF_DAY"].includes(existing)) {
+    if (["WFH", "LEAVE", "HALF_DAY", "HALF_DAY_PENDING"].includes(existing)) {
       return;
     }
 
@@ -282,6 +277,7 @@ if (weekOff) {
     newCal[date] = "WEEKOFF";
   });
 }
+
 
       /* ⭐ KPI CALCULATION FOR FILTER RANGE */
 const present = Object.values(newCal).filter(

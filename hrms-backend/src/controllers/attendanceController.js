@@ -186,14 +186,7 @@ const halfDayCutoff = new Date(
 );
 
 if (isWeekOff) {
-  if (today >= halfDayCutoff) {
-    // 🔥 WeekOff + Late
-    status = "HALF_DAY_PENDING";
-    lateHalfDayEligible = true;
-  } else {
-    // WeekOff + On time
-    status = "WEEKOFF_PRESENT";
-  }
+  status = "WEEKOFF_PRESENT";
 }
 else if (leaveToday?.type === "WFH") {
   status = "WFH";
@@ -732,42 +725,22 @@ if (alreadyLeave) {
         message: "Half-day approved"
       });
     }
-/* =========================
-   REJECT
-========================= */
 
-const iso = new Date(attendance.date);
-iso.setHours(0, 0, 0, 0);
+    /* =========================
+       REJECT
+    ========================= */
+    await prisma.attendance.update({
+      where: { id: attendanceId },
+      data: {
+        status: "PRESENT",
+        lateHalfDayEligible: false
+      }
+    });
 
-const dayName = iso.toLocaleDateString("en-US", {
-  weekday: "long"
-});
-
-const weeklyOff = await prisma.weeklyOff.findFirst({
-  where: {
-    userId: attendance.userId,
-    OR: [
-      { isFixed: true, offDay: dayName },
-      { isFixed: false, offDate: iso }
-    ]
-  }
-});
-
-await prisma.attendance.update({
-  where: { id: attendanceId },
-  data: {
-    status: weeklyOff ? "WEEKOFF_PRESENT" : "PRESENT",
-    lateHalfDayEligible: false
-  }
-});
-
-return res.json({
-  success: true,
-  message: weeklyOff
-    ? "Half-day rejected, marked WeekOff Present"
-    : "Half-day rejected, marked present"
-});
-
+    return res.json({
+      success: true,
+      message: "Half-day rejected, marked present"
+    });
 
   } catch (err) {
     console.error("[decideHalfDay ERROR]", err);
