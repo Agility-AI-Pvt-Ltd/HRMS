@@ -46,22 +46,18 @@ export default function EmployeeView() {
 
 const load = async () => {
   try {
-    const [userRes, weekOffRes] = await Promise.all([
-      api.get(`/users/${id}/details`),
-      api.get(`/weekly-off/me`)
-    ]);
+    const userRes = await api.get(`/users/${id}/details`);
 
     setEmp({
       ...userRes.data.user,
       stats: userRes.data.stats,
-      weeklyOff: weekOffRes.data.weekOff,
+      weeklyOff: userRes.data.user.weeklyOff, // 👈 YAHIN SE AAYEGA
     });
   } catch (e) {
     console.error(e);
   }
   setLoading(false);
 };
-
 
   useEffect(() => {
     load();

@@ -38,6 +38,50 @@ export const getMyWeeklyOff = async (req, res) => {
 };
 
 /* =====================================================
+   GET WEEKLY-OFF BY USER ID (ADMIN / MANAGER VIEW)
+===================================================== */
+export const getWeeklyOffByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or deactivated",
+      });
+    }
+
+    const data = await prisma.weeklyOff.findFirst({
+      where: { userId },
+      select: {
+        offDay: true,
+        offDate: true,
+        isFixed: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      weekOff: data || null,
+    });
+
+  } catch (e) {
+    console.error("WeeklyOff by UserId Error:", e);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch weekly off",
+    });
+  }
+};
+
+/* =====================================================
    CREATE / ASSIGN WEEKLY-OFF (POST)
 ===================================================== */
 export const assignWeeklyOff = async (req, res) => {

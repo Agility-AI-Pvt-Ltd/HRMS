@@ -27,6 +27,11 @@ function todayRange() {
   return { s, e };
 }
 
+function nowIST() {
+  const now = new Date();
+  return new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+}
+
 function toLocalISO(date) {
   const d = new Date(date);
   return (
@@ -109,10 +114,7 @@ if (!activeUser) {
     if (user.role === "ADMIN")
       return res.status(403).json({ success: false, message: "Admin cannot check in" });
 
-   // 🔥 Always use IST time (server independent)
-const today = new Date(
-  new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-);
+    const today = nowIST();
     const todayISO = toLocalISO(today);
 
     /* =====================================================
@@ -198,9 +200,8 @@ if (leaveToday && !["WFH", "HALF_DAY"].includes(leaveToday.type)) {
 let status = "PRESENT";
 let lateHalfDayEligible = false;
 
-const halfDayCutoff = new Date(
-  today.toDateString() + " 12:00:00"
-);
+const halfDayCutoff = new Date(today);
+halfDayCutoff.setHours(12, 0, 0, 0);
 
 if (isWeekOff) {
   status = "WEEKOFF_PRESENT";
@@ -276,7 +277,8 @@ if (!activeUser) {
     if (!user) return res.status(401).json({ success: false, message: "Not authenticated" });
     if (user.role === "ADMIN") return res.status(403).json({ success: false, message: "Admin cannot check out" });
 
-    const todayISO = toLocalISO(new Date());
+const today = nowIST();
+const todayISO = toLocalISO(today);
     const { s, e } = todayRange();
 const existing = await prisma.attendance.findFirst({
   where: {
@@ -291,9 +293,7 @@ const existing = await prisma.attendance.findFirst({
     if (existing.checkOut)
       return res.json({ success: true, message: "Already checked out", attendance: existing });
 
- const nowIST = new Date(
-  new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-);
+const nowIST = nowIST();
 
 const updated = await prisma.attendance.update({
   where: { id: existing.id },
@@ -364,8 +364,8 @@ if (!activeUser) {
     const last = new Date(end);
     last.setHours(0, 0, 0, 0);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+const today = nowIST();
+today.setHours(0, 0, 0, 0);
 
     while (cur <= last && cur <= today) {
       const iso = toLocalISO(cur);

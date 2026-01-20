@@ -5,6 +5,7 @@ import {
   removeWeeklyOff,
   updateWeeklyOff,
   getMyWeeklyOff, 
+  getWeeklyOffByUserId,
 } from "../controllers/weeklyOffController.js";
 import { requireAuth } from "../middlewares/auth.js";
 
@@ -30,6 +31,9 @@ router.put(
   requireAuth(["ADMIN"]),
   updateWeeklyOff
 );
+
+// routes/weeklyOffRoutes.js
+router.get("/weekly-off/:userId",requireAuth(["ADMIN"]), getWeeklyOffByUserId);
 
 // Delete weekly off record
 router.delete(

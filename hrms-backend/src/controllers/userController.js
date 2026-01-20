@@ -558,10 +558,18 @@ export const getUserFullDetails = async (req, res) => {
            isActive: true,
        },
       include: {
-        department: true,
-        departments: {
-          include: { department: true },
-        },
+              department: true,
+              departments: {
+                include: { department: true },
+                },
+
+          weeklyOffs: {               // 👈🔥 ADD THIS
+    select: {
+      offDay: true,
+      offDate: true,
+      isFixed: true,
+    },
+  },
         attendances: true,
 leaves: {
   where: { isAdminDeleted: false },
@@ -593,6 +601,13 @@ leaves: {
           department: true,
           departments: {
             include: { department: true },
+          },
+         weeklyOffs: {
+            select: {
+              offDay: true,
+              offDate: true,
+              isFixed: true,
+            },
           },
           attendances: true,
          leaves: {
@@ -656,7 +671,13 @@ const remainingLeaves = Math.max(
 
     return res.json({
       success: true,
-      user,
+       user: {
+        ...user,
+        weeklyOff:
+          user.weeklyOffs && user.weeklyOffs.length > 0
+            ? user.weeklyOffs[0]
+            : null, // 👈 FRONTEND READY
+      },
       stats: {
         totalLeaves,
         approvedLeaves: approvedNormalLeaves,
