@@ -18,7 +18,13 @@ const uiStatus = (s) => {
 };
 
 const formatTime = (v) =>
-  v ? new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
+  v
+    ? new Date(v).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata",
+      })
+    : "--";
 
 const parseHours = (cin, cout) => {
   if (!cin || !cout) return 0;

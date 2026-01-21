@@ -16,9 +16,10 @@ const getWeekOffLabel = (weekOff) => {
 };
 const formatTime = (v) =>
   v
-    ? new Date(v).toLocaleTimeString([], {
+    ? new Date(v).toLocaleTimeString("en-IN", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "Asia/Kolkata",
       })
     : "--";
 

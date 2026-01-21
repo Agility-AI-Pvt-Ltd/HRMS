@@ -27,16 +27,20 @@ function todayRange() {
   return { s, e };
 }
 
-function nowIST() {
-  const now = new Date();
-  return new Date(now.getTime());
+function toLocalISO(date) {
+  const d = new Date(
+    new Date(date).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
 }
 
-function toLocalISO(date) {
-  const d = new Date(date);
-  return (
-    d.getFullYear() +  "-" +  String(d.getMonth() + 1).padStart(2, "0") +  "-" + String(d.getDate()).padStart(2, "0") );
-}
 // ================= Auto Grant Comp-Off on Weekly Off Work =================
 async function autoGrantCompOff(userId, workDate) {
   
@@ -114,7 +118,7 @@ if (!activeUser) {
     if (user.role === "ADMIN")
       return res.status(403).json({ success: false, message: "Admin cannot check in" });
 
-    const today = nowIST();
+    const today = new Date(); // UTC — CORRECT
     const todayISO = toLocalISO(today);
 
     /* =====================================================
@@ -200,7 +204,10 @@ if (leaveToday && !["WFH", "HALF_DAY"].includes(leaveToday.type)) {
 let status = "PRESENT";
 let lateHalfDayEligible = false;
 
-const halfDayCutoff = new Date(today);
+const istNow = new Date(
+  today.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+);
+const halfDayCutoff = new Date(istNow);
 halfDayCutoff.setHours(12, 0, 0, 0);
 
 if (isWeekOff) {
@@ -213,7 +220,7 @@ else if (leaveToday?.type === "HALF_DAY") {
   status = "HALF_DAY";
 }
 else {
-  if (today >= halfDayCutoff) {
+  if (istNow >= halfDayCutoff) {
     status = "HALF_DAY_PENDING";                 // still present
     lateHalfDayEligible = true;         // 🔥 ADMIN DECISION PENDING
   } else {
@@ -277,7 +284,7 @@ if (!activeUser) {
     if (!user) return res.status(401).json({ success: false, message: "Not authenticated" });
     if (user.role === "ADMIN") return res.status(403).json({ success: false, message: "Admin cannot check out" });
 
-const today = nowIST();
+const today = new Date(); // UTC — CORRECT
 const todayISO = toLocalISO(today);
     const { s, e } = todayRange();
 const existing = await prisma.attendance.findFirst({
@@ -293,11 +300,10 @@ const existing = await prisma.attendance.findFirst({
     if (existing.checkOut)
       return res.json({ success: true, message: "Already checked out", attendance: existing });
 
-const nowIST = nowIST();
-
+const nowTime = new Date(); // UTC
 const updated = await prisma.attendance.update({
   where: { id: existing.id },
-  data: { checkOut: nowIST }
+  data: { checkOut: nowTime }
 });
 
     return res.json({ success: true, message: "Checked out", attendance: updated });
@@ -364,7 +370,7 @@ if (!activeUser) {
     const last = new Date(end);
     last.setHours(0, 0, 0, 0);
 
-const today = nowIST();
+const today = new Date(); // UTC — CORRECT
 today.setHours(0, 0, 0, 0);
 
     while (cur <= last && cur <= today) {
@@ -923,6 +929,14 @@ if (!activeUser) {
 export const exportAttendance = async (req, res) => {
   try {
     const user = req.user;
+    const formatIST = (d) =>
+  d
+    ? new Date(d).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata",
+      })
+    : "";
 
     let { start, end, userId, departmentId, format } = req.query;
     if (!format) format = "csv";
@@ -948,13 +962,21 @@ include: { user: true },
 orderBy: { date: "asc" }
 });
 
-    if (format === "csv") {
-      const parser = new Parser({
-        fields: ["user.firstName", "date", "checkIn", "checkOut", "status"]
-      });
+if (format === "csv") {
+  const csvRows = rows.map(r => ({
+    employee: r.user.firstName,
+    date: toLocalISO(r.date),
+    checkIn: formatIST(r.checkIn),
+    checkOut: formatIST(r.checkOut),
+    status: r.status,
+  }));
+  
+   const parser = new Parser({
+    fields: ["employee", "date", "checkIn", "checkOut", "status"],
+  });
 
-      const csv = parser.parse(rows);
-
+  const csv = parser.parse(csvRows);
+  
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", "attachment; filename=attendance.csv");
       return res.send(csv);
@@ -975,8 +997,8 @@ orderBy: { date: "asc" }
       sheet.addRow({
         employee: r.user.firstName,
         date: toLocalISO(r.date),
-        checkIn: r.checkIn ? r.checkIn.toTimeString().slice(0, 5) : "",
-        checkOut: r.checkOut ? r.checkOut.toTimeString().slice(0, 5) : "",
+        checkIn: formatIST(r.checkIn),
+        checkOut: formatIST(r.checkOut),
         status: r.status
       });
     });
