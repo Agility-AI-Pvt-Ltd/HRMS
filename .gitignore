@@ -3,3 +3,4 @@ dist
 .env
 .vscode
 .prisma
+SOCKET_IO_SETUP_VERIFICATION.md

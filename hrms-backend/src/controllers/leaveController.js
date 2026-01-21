@@ -2,6 +2,7 @@ import prisma from "../prismaClient.js";
 import { sendRequestNotificationMail } from "../utils/sendMail.js";
 import { getAdminAndManagers } from "../utils/getApprovers.js";
 import { creditMonthlyLeaveIfNeeded } from "../utils/leaveCredit.js";
+import { emitToAdmins, emitToUsers, emitToUser } from "../socket/socketServer.js";
 
 
 const isHalfDay = (type) => type === "HALF_DAY";
@@ -219,17 +220,22 @@ if (currentUser.leaveBalance < daysRequested) {
     const employee = await prisma.user.findUnique({
       where:{ id:req.user.id },
       include:{
-        departments:{ include:{ department:{ include:{ managers:true }}}}
+        departments:{ include:{ department:{ include:{ managers:{ select: { id: true, email: true } }}}}}
       }
     });
 
     const managers = employee.departments.flatMap(d=>d.department.managers);
-    if(managers.length===0)
+    // Remove duplicate managers
+    const uniqueManagers = managers.filter((m, index, self) => 
+      index === self.findIndex(manager => manager.id === m.id)
+    );
+    
+    if(uniqueManagers.length === 0)
       return res.status(400).json({ success:false,message:"No manager assigned" });
 
     const admins = await prisma.user.findMany({
     where: { role: "ADMIN", isActive: true },
-    select: { email: true }
+    select: { id: true, email: true }
     });
 
 let responsiblePersonId = null;
@@ -272,12 +278,12 @@ const updatedUser = await prisma.user.findUnique({
 
     /* Create approvals */
     await prisma.leaveApproval.createMany({
-      data: managers.map(m=>({ leaveId:leave.id, managerId:m.id, status:"PENDING" })),
+      data: uniqueManagers.map(m=>({ leaveId:leave.id, managerId:m.id, status:"PENDING" })),
       skipDuplicates:true              // <-- Avoid P2002 crash
     });
 
 const mailRecipients = [...new Set([
-  ...managers.map(m => m.email),
+  ...uniqueManagers.map(m => m.email),
   ...admins.map(a => a.email)
 ])];
 
@@ -296,6 +302,55 @@ details:[
 ].filter(Boolean)
       });
     }catch(e){ console.log("Mail fail:",e.message); }
+
+    // 🔔 Create database notifications and emit Socket.io notifications to admins and managers
+    try {
+      const adminIds = admins.map(a => a.id);
+      const managerIds = uniqueManagers.map(m => m.id);
+      const allRecipientIds = [...new Set([...adminIds, ...managerIds])];
+
+      const notificationTitle = "New Leave Request";
+      const notificationBody = `${leave.user.firstName} ${leave.user.lastName || ""} has submitted a ${getLeaveTypeName(type)} request`;
+
+      // Create database notifications for all recipients
+      await prisma.notification.createMany({
+        data: allRecipientIds.map(userId => ({
+          userId,
+          title: notificationTitle,
+          body: notificationBody,
+          meta: {
+            type: "leave_request",
+            leaveId: leave.id,
+            employeeId: leave.userId,
+          }
+        }))
+      });
+
+      const notificationData = {
+        type: "leave_request",
+        leaveId: leave.id,
+        employeeId: leave.userId,
+        employeeName: `${leave.user.firstName} ${leave.user.lastName || ""}`,
+        leaveType: getLeaveTypeName(type),
+        startDate: requestStart,
+        endDate: requestEnd,
+        reason: reason || "",
+        message: notificationBody,
+        title: notificationTitle,
+        body: notificationBody,
+      };
+
+      // Emit to all admins
+      emitToAdmins("new_leave_request", notificationData);
+
+      // Emit to managers (only if there are managers)
+      if (managerIds.length > 0) {
+        emitToUsers(managerIds, "new_leave_request", notificationData);
+      }
+    } catch (socketError) {
+      console.error("Socket notification error:", socketError);
+      // Don't fail the request if socket fails
+    }
 
     return res.json({
       success:true,
@@ -732,6 +787,44 @@ details:[
 ].filter(Boolean)
       });
     } catch(e){ console.log("Mail fail:",e.message); }
+
+    // 🔔 Create database notification and emit Socket.io notification to employee
+    try {
+      const notificationTitle = `Leave Request ${finalStatus}`;
+      const notificationBody = `Your ${getLeaveTypeName(updated.type)} request from ${formatMailDateRange(updated.startDate, updated.endDate)} has been ${finalStatus.toLowerCase()}${finalStatus === "REJECTED" ? `. Reason: ${reason || "Not specified"}` : ""}`;
+
+      // Create database notification
+      await prisma.notification.create({
+        data: {
+          userId: updated.userId,
+          title: notificationTitle,
+          body: notificationBody,
+          meta: {
+            type: "leave_status_update",
+            leaveId: updated.id,
+            status: finalStatus,
+          }
+        }
+      });
+
+      const notificationData = {
+        type: "leave_status_update",
+        leaveId: updated.id,
+        status: finalStatus,
+        leaveType: getLeaveTypeName(updated.type),
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        reason: finalStatus === "REJECTED" ? (reason || "Not specified") : null,
+        message: `Your leave request has been ${finalStatus.toLowerCase()}`,
+        title: notificationTitle,
+        body: notificationBody,
+      };
+
+      emitToUser(updated.userId, "leave_status_update", notificationData);
+    } catch (socketError) {
+      console.error("Socket notification error:", socketError);
+      // Don't fail the request if socket fails
+    }
 
     return res.json({
       success:true,

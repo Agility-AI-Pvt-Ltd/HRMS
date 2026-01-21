@@ -1,65 +1,90 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { FiBell } from "react-icons/fi";
 import api from "../api/axios";
 import useAuthStore from "../stores/authstore";
+import { useSocket } from "../contexts/SocketContext";
 
 export default function NotificationDropdown() {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const user = useAuthStore((s) => s.user);
+  const { socket, isConnected } = useSocket();
+
+  const loadNotes = useCallback(async () => {
+    try {
+      const r = await api.get("/notifications");
+      let all = r.data.notifications || [];
+
+      // ---------------------------
+      // 1️⃣ ADMIN sees ALL notifications
+      // ---------------------------
+      if (user?.role === "ADMIN") {
+        setNotes(all);
+        // Count unread for admin (notifications not read by anyone)
+        setUnreadCount(all.filter(n => !n.isRead || (n.readByIds && n.readByIds.length === 0)).length);
+        return;
+      }
+
+      // ---------------------------
+      // 2️⃣ EMPLOYEE sees only their own notifications
+      // ---------------------------
+      const filtered = all.filter((n) => n.userId === user?.id);
+
+      setNotes(filtered);
+      // Count unread for employee
+      setUnreadCount(filtered.filter(n => !n.isRead || !(n.readByIds && n.readByIds.includes(user?.id))).length);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    }
+  }, [user]);
 
   useEffect(() => {
-    const loadNotes = async () => {
-      try {
-        const r = await api.get("/notifications");
-        let all = r.data.notifications || [];
+    if (user?.id) {
+      loadNotes();
+    }
+  }, [user?.id, user?.role, loadNotes]);
 
-        // ---------------------------
-        // 1️⃣ Remove duplicates of Everyone (ADMIN only)
-        // ---------------------------
-        const everyoneSeen = new Set();
-        const noDuplicateEveryone = all.filter((n) => {
-          if (n.to === "Everyone") {
-            if (everyoneSeen.has(n.title)) return false;
-            everyoneSeen.add(n.title);
-          }
-          return true;
-        });
+  // Listen for real-time notifications
+  useEffect(() => {
+    if (!socket || !isConnected || !user?.id) return;
 
-        // ---------------------------
-        // 2️⃣ ADMIN sees ALL (cleaned list)
-        // ---------------------------
-        if (user.role === "ADMIN") {
-          setNotes(noDuplicateEveryone);
-          return;
-        }
-
-        // ---------------------------
-        // 3️⃣ EMPLOYEE sees:
-        //     - notifications sent to them
-        //     - or sent to Everyone
-        // ---------------------------
-        const filtered = noDuplicateEveryone.filter(
-          (n) => n.to === "Everyone" || n.to === user.id
-        );
-
-        setNotes(filtered);
-      } catch (err) {
-        console.log("Failed to load notifications");
-      }
+    // Listen for new leave request (for admins/managers)
+    const handleNewLeaveRequest = () => {
+      // Reload notifications to get the latest from database
+      loadNotes();
     };
 
-    loadNotes();
-  }, [user.id, user.role]);
+    // Listen for leave status update (for employees)
+    const handleLeaveStatusUpdate = () => {
+      // Reload notifications to get the latest from database
+      loadNotes();
+    };
+
+    socket.on("new_leave_request", handleNewLeaveRequest);
+    socket.on("leave_status_update", handleLeaveStatusUpdate);
+
+    return () => {
+      if (socket) {
+        socket.off("new_leave_request", handleNewLeaveRequest);
+        socket.off("leave_status_update", handleLeaveStatusUpdate);
+      }
+    };
+  }, [socket, isConnected, user?.id, loadNotes]);
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700"
+        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 relative"
       >
         <FiBell />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
       </button>
 
       {open && (
@@ -78,19 +103,9 @@ export default function NotificationDropdown() {
                   <div className="text-sm font-bold">{n.title}</div>
                   <div className="text-xs text-gray-400">{n.body}</div>
 
-                  {/* ⭐ ADMIN VIEW → Show receiver */}
-                  {user.role === "ADMIN" && (
-                    <div className="text-[11px] text-blue-500 mt-1">
-                      To: {n.to === "Everyone" ? "Everyone" : n.toName}
-                    </div>
-                  )}
-
-                  {/* ⭐ EMPLOYEE VIEW → Show sender */}
-                  {user.role !== "ADMIN" && (
-                    <div className="text-[11px] text-green-500 mt-1">
-                      From: {n.fromName || "Admin"}
-                    </div>
-                  )}
+                  <div className="text-[10px] text-gray-500 mt-1">
+                    {new Date(n.createdAt).toLocaleString()}
+                  </div>
                 </div>
               ))
             )}
