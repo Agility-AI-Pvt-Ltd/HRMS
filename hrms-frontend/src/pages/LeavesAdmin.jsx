@@ -160,6 +160,11 @@ export default function LeavesAdmin() {
   const [deleteLoadingId, setDeleteLoadingId] = useState(null);
   const [lateHalfDays, setLateHalfDays] = useState([]);
 
+  const [attendanceCorrections, setAttendanceCorrections] = useState([]);
+  const [correctionRejectId, setCorrectionRejectId] = useState(null);
+  const [correctionRejectOpen, setCorrectionRejectOpen] = useState(false);
+
+
   const openRejectPopup = (id) => {
     setRejectId(id);
     setRejectOpen(true);
@@ -213,9 +218,17 @@ setLateHalfDays(pending);
 } catch (err) {
   console.error("Failed to load late half day");
 }
-  setLoading(false);
-};
+// 4️⃣ Attendance Correction Requests
+try {
+  const r = await api.get("/attendance-corrections");
+  setAttendanceCorrections(r.data.data || []);
+} catch (e) {
+  console.error("Failed to load attendance corrections");
+}
 
+  setLoading(false);
+
+};
 
   useEffect(() => {
     load();
@@ -231,6 +244,22 @@ const decideHalfDay = async (attendanceId, action) => {
     setMsg("Decision applied successfully");
     setMsgType("success");
     load(); // 🔥 reload leaves + attendance
+  } catch (e) {
+    setMsg(e?.response?.data?.message || "Action failed");
+    setMsgType("error");
+  }
+};
+const decideAttendanceCorrection = async (id, action, reason) => {
+  try {
+    await api.post("/attendance-corrections/decision", {
+      id,
+      action,   // "APPROVE" | "REJECT"
+      reason,
+    });
+
+    setMsg("Attendance correction updated");
+    setMsgType("success");
+    load();
   } catch (e) {
     setMsg(e?.response?.data?.message || "Action failed");
     setMsgType("error");
@@ -365,6 +394,61 @@ const submitReject = async (reason) => {
     </div>
   </GlassCard>
 )}
+{attendanceCorrections.length > 0 && (
+  <GlassCard>
+    <h3 className="text-xl font-semibold mb-4">
+      Attendance Correction Requests
+    </h3>
+
+    <div className="space-y-4">
+      {attendanceCorrections.map((c) => (
+        <div
+          key={c.id}
+          className="p-4 rounded-xl border bg-indigo-50 dark:bg-gray-900"
+        >
+          <div className="font-semibold">
+            {c.user.firstName} {c.user.lastName}
+          </div>
+
+          <div className="text-sm text-gray-500">
+            Date: {c.date.slice(0, 10)}
+          </div>
+
+          <div className="text-xs text-gray-600 mt-1">
+            <b>Reason:</b> {c.reason}
+          </div>
+
+          {c.status === "REJECTED" && c.adminReason && (
+            <div className="text-xs text-red-600 mt-1">
+              <b>Rejected:</b> {c.adminReason}
+            </div>
+          )}
+
+          {c.status === "PENDING" && (
+            <div className="flex gap-2 mt-3">
+<button
+  onClick={() => decideAttendanceCorrection(c.id, "APPROVE")}
+  className="px-3 py-1 bg-green-600 text-white rounded"
+>
+  Approve
+</button>
+
+    <button
+      onClick={() => {
+        setCorrectionRejectId(c.id);
+        setCorrectionRejectOpen(true);
+      }}
+      className="px-3 py-1 bg-red-600 text-white rounded"
+    >
+      Reject
+    </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </GlassCard>
+)}
 
       <PageTitle title="Leaves" sub="Admin Panel – Approve & Manage Leaves" />
 
@@ -436,6 +520,20 @@ const submitReject = async (reason) => {
           onConfirm={submitReject}
         />
       )}
+      {correctionRejectOpen && (
+  <ConfirmRejectPopup
+    onCancel={() => setCorrectionRejectOpen(false)}
+    onConfirm={(reason) => {
+decideAttendanceCorrection(
+  correctionRejectId,
+  "REJECT",
+  reason
+);
+      setCorrectionRejectOpen(false);
+      setCorrectionRejectId(null);
+    }}
+  />
+)}
     </div>
   );
 }

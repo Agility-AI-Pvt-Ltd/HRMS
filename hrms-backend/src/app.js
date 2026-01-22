@@ -19,8 +19,9 @@ import reimbursementRoutes from "./routes/reimbursementRoutes.js";
 import managerRoutes from "./routes/managerRoutes.js";
 import resignationRoutes from "./routes/resignationRoutes.js";
 import weeklyOffRoutes from "./routes/weeklyOffRoutes.js";
-import compOffRoutes from "./routes/compOffRoutes.js";   // <--- add import top
+import compOffRoutes from "./routes/compOffRoutes.js";   
 import holidayRoutes from "./routes/holidayRoutes.js"; 
+import attendanceCorrectionRoutes from "./routes/attendanceCorrectionRoutes.js"; 
 
 const app = express();
 
@@ -95,6 +96,7 @@ app.use("/api/resignation", resignationRoutes);
 app.use("/api/weekly-off", weeklyOffRoutes);
 app.use("/api/comp-off", compOffRoutes); 
 app.use("/api/holidays", holidayRoutes);
+app.use( "/api/attendance-corrections", attendanceCorrectionRoutes);
 
 /* ============================================================
    HEALTH CHECK

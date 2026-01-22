@@ -34,11 +34,13 @@ model User {
   managedDepartments Department[]     @relation("DepartmentManagers")
 
   // 🔥 LEAVE SYSTEM
-  leaveBalance     Float    @default(0)     // current usable balance
-  lastLeaveCredit  DateTime?                // last month credit date
-  
+  leaveBalance    Float     @default(0) // current usable balance
+  lastLeaveCredit DateTime? // last month credit date
+
   leaveApprovals         LeaveApproval[]
   reimbursementApprovals ReimbursementApproval[]
+
+  attendanceCorrections AttendanceCorrection[]
 
   //  Resignation relation added
   resignations Resignation[]
@@ -113,20 +115,35 @@ model UserDepartment {
 /// *
 ///  * ===================== ATTENDANCE =====================
 model Attendance {
-  id        String    @id @default(uuid())
-  userId    String
-  date      DateTime
-  checkIn   DateTime?
-  checkOut  DateTime?
-  status    String
-  note      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id])
-  lateHalfDayEligible Boolean @default(false)
+  id                  String    @id @default(uuid())
+  userId              String
+  date                DateTime
+  checkIn             DateTime?
+  checkOut            DateTime?
+  status              String
+  note                String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  user                User      @relation(fields: [userId], references: [id])
+  lateHalfDayEligible Boolean   @default(false)
 
-  @@index([userId, date])
+  @@unique([userId, date])
   @@map("attendances")
+}
+
+model AttendanceCorrection {
+  id          String    @id @default(uuid())
+  userId      String
+  date        DateTime
+  reason      String
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminReason String?
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date]) // same day duplicate request block
 }
 
 /// *
@@ -335,6 +352,12 @@ enum LeaveApprovalStatus {
 }
 
 enum ReimbursementApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendanceCorrectionStatus {
   PENDING
   APPROVED
   REJECTED

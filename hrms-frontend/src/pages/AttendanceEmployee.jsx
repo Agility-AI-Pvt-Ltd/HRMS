@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import api from "../api/axios";
 import useAuthStore from "../stores/authstore";
+import AttendanceCorrectionPopup from "../components/AttendanceCorrectionPopup.jsx";
 
 /* ------------------ HELPERS ------------------ */
 const toISODate = (d) => {
@@ -117,6 +118,15 @@ export default function AttendanceEmployee() {
   const [checkOutSuccess, setCheckOutSuccess] = useState(false);
   const [holidaysList, setHolidaysList] = useState([]);
   const refreshUser = useAuthStore((s) => s.refreshUser);
+
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionDate, setCorrectionDate] = useState(null);
+
+  const openCorrectionPopup = (date) => {
+    setCorrectionDate(date);
+    setCorrectionOpen(true);
+  };
+
 
   /* FULL YEAR CACHED DATA */
   const [fullData, setFullData] = useState({
@@ -472,25 +482,7 @@ return (
               >
                 Export Excel
               </button>
-{/* <button
-  onClick={async () => {
-    try {
-      setLoading(true);
-      await loadFullYear();          // 🔥 fresh DB fetch
-      loadAttendance(filters);
-    } finally {
-      setLoading(false);
-    }
-  }}
-  disabled={loading}
-  className={`px-4 py-2 text-xs rounded-lg shadow flex items-center gap-1
-    ${loading
-      ? "bg-gray-400 cursor-not-allowed"
-      : "bg-indigo-600 hover:bg-indigo-700 text-white"
-    }`}
->
-  {loading ? "Refreshing..." : "🔄 Refresh"}
-</button> */}
+
             </div>
 
             {/* FILTER BUTTONS */}
@@ -846,6 +838,15 @@ return (
     className="p-3 rounded-xl border shadow bg-white dark:bg-gray-800 
     dark:border-[#2a2c33] flex flex-col sm:flex-row justify-between items-center gap-3"
   >
+  {log.status === "ABSENT" && (
+  <button
+    onClick={() => openCorrectionPopup(log.date)}
+    className="text-xs px-2 py-1 bg-indigo-600 text-white rounded"
+  >
+    Request Present
+  </button>
+)}
+
     {/* LEFT SIDE */}
     <div>
       <div className="font-bold text-sm sm:text-base dark:text-white">
@@ -922,7 +923,32 @@ return (
             {error}
           </div>
         </div>
+
       )}
+      
+{correctionOpen && (
+  <AttendanceCorrectionPopup
+    date={correctionDate}
+    onClose={() => setCorrectionOpen(false)}
+    onSuccess={async (reason) => {
+      try {
+       await api.post("/attendance-corrections", {
+          date: correctionDate,
+          reason,
+        });
+
+        setCorrectionOpen(false);
+        await loadFullYear();
+        loadAttendance(filters);
+      } catch (e) {
+        setError(
+          e?.response?.data?.message || "Correction request failed"
+        );
+      }
+    }}
+  />
+)}
+
     </div>
   </div>);
 };
