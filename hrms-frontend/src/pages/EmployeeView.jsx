@@ -14,13 +14,20 @@ const getWeekOffLabel = (weekOff) => {
   }
   return "Not Assigned";
 };
-const formatTime = (v) =>
-  v
-    ? new Date(v).toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "--";
+
+const formatTime = (v) => {
+  if (!v) return "--";
+
+  const d = new Date(v);
+
+  // 🔥 subtract 5 hours 30 minutes
+  d.setMinutes(d.getMinutes() - 330);
+
+  return d.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 const getLeaveLabel = (type) => {
   const map = {

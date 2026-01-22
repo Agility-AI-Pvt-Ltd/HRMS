@@ -8,15 +8,19 @@ import api from "../api/axios";
 ---------------------------------------------------------- */
 const toISODate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 
-const formatTime = (v) =>
-  v
-    ? new Date(v).toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-        timeZone: "Asia/Kolkata",
-      })
-    : "--";
+const formatTime = (v) => {
+  if (!v) return "--";
+
+  const d = new Date(v);
+
+  // 🔥 subtract 5 hours 30 minutes
+  d.setMinutes(d.getMinutes() - 330);
+
+  return d.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 const parseHours = (cin, cout) => {
   if (!cin || !cout) return 0;
