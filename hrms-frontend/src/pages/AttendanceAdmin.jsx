@@ -13,14 +13,17 @@ const formatTime = (v) => {
 
   const d = new Date(v);
 
-  // 🔥 subtract 5 hours 30 minutes
-  d.setMinutes(d.getMinutes() - 330);
+  // 🔥 FORCE UTC → IST rollback (−5:30)
+  d.setHours(d.getHours() - 5);
+  d.setMinutes(d.getMinutes() - 30);
 
   return d.toLocaleTimeString("en-IN", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 };
+
 
 const parseHours = (cin, cout) => {
   if (!cin || !cout) return 0;
