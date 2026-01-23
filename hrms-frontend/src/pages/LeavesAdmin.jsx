@@ -207,12 +207,13 @@ const load = async () => {
 
   // 3️⃣ Late Half Day Attendance (from Attendance)
 try {
+const start = `${new Date().getFullYear()}-01-01`;
 const today = new Date().toISOString().slice(0, 10);
 const h = await api.get(
-  `/attendance/all?start=${today}&end=${today}`
+  `/attendance/all?start=${start}&end=${today}`
 );
 const pending = (h.data.attendances || []).filter(
-  a => a.status === "HALF_DAY_PENDING"
+  a => a.status === "HALF_DAY_PENDING" && a.lateHalfDayEligible
 );
 setLateHalfDays(pending);
 } catch (err) {

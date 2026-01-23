@@ -838,14 +838,7 @@ return (
     className="p-3 rounded-xl border shadow bg-white dark:bg-gray-800 
     dark:border-[#2a2c33] flex flex-col sm:flex-row justify-between items-center gap-3"
   >
-  {log.status === "ABSENT" && (
-  <button
-    onClick={() => openCorrectionPopup(log.date)}
-    className="text-xs px-2 py-1 bg-indigo-600 text-white rounded"
-  >
-    Request Present
-  </button>
-)}
+
 
     {/* LEFT SIDE */}
     <div>
@@ -878,7 +871,26 @@ return (
         )}
       </div>
     </div>
+ {(() => {
+  const todayIso = toISODate(new Date());
 
+  // ❌ Today ke liye request allowed nahi
+  if (log.date === todayIso) return null;
+
+  // ✅ Sirf past ABSENT dates ke liye
+  if (log.status === "ABSENT") {
+    return (
+      <button
+        onClick={() => openCorrectionPopup(log.date)}
+        className="text-xs px-2 py-1 bg-indigo-600 text-white rounded"
+      >
+        Request Present
+      </button>
+    );
+  }
+
+  return null;
+})()}
     {/* RIGHT SIDE — TOTAL HOURS */}
     <div className="text-right">
       <div className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
