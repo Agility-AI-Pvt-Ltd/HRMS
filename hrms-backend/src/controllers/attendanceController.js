@@ -180,15 +180,13 @@ if (leaveToday && !["WFH", "HALF_DAY"].includes(leaveToday.type)) {
     /* =====================================================
        4️⃣ DUPLICATE CHECK
     ===================================================== */
-    const existing = await prisma.attendance.findFirst({
-      where: {
-        userId: user.id,
-        date: {
-          gte: new Date(todayISO + "T00:00:00"),
-          lte: new Date(todayISO + "T23:59:59.999")
-        }
-      }
-    });
+const existing = await prisma.attendance.findFirst({
+  where: {
+    userId: user.id,
+    checkOut: null   // 🔥 key fix
+  },
+  orderBy: { checkIn: "desc" }
+});
 
     if (existing?.checkIn) {
       return res.json({

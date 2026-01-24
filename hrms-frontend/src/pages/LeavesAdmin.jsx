@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import ConfirmDelPopup from "../components/ConfirmDelPopup";
 import ConfirmRejectPopup from "../components/ConfirmRejPopup";
-
+import useAuthStore from "../stores/authstore";
 function PageTitle({ title, sub }) {
   return (
     <div>
@@ -183,6 +183,11 @@ export default function LeavesAdmin() {
     return () => clearTimeout(t);
   }, [msg]);
 
+  useEffect(() => {
+    // ✅ Refresh user data on component mount
+    useAuthStore.getState().refreshUser();
+  }, []);
+
 const load = async () => {
   setLoading(true);
 
@@ -234,6 +239,26 @@ try {
   useEffect(() => {
     load();
   }, []);
+  useEffect(() => {
+  // Auto refresh when admin switches back to tab
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      load();
+    }
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  // // Auto refresh every 60 seconds
+  // const interval = setInterval(() => {
+  //   load();
+  // }, 60000); // 60 seconds
+
+  return () => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    clearInterval(interval);
+  };
+}, []);
 
 const decideHalfDay = async (attendanceId, action) => {
   try {

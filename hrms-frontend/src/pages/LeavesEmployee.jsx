@@ -241,13 +241,31 @@ const approvedLeaveDays = React.useMemo(() => {
     )
   );
 
-  // ⭐ Total half day applied (count)
-  const totalAppliedHalfDay = leaves.filter(
-    (l) =>
-      l.type === "HALF_DAY" &&
-      new Date(l.startDate) >= new Date(yearStart) &&
-      new Date(l.endDate) <= new Date(yearEnd)
-  ).length;
+  // // ⭐ Total half day applied (count)
+  // const totalAppliedHalfDay = leaves.filter(
+  //   (l) =>
+  //     l.type === "HALF_DAY" &&
+  //     new Date(l.startDate) >= new Date(yearStart) &&
+  //     new Date(l.endDate) <= new Date(yearEnd)
+  // ).length;
+  // ⭐ Half Day Leave (applied by employee)
+const appliedHalfDay = leaves.filter(
+  (l) =>
+    l.type === "HALF_DAY" &&
+    l.status === "APPROVED" &&
+    new Date(l.startDate) >= new Date(yearStart) &&
+    new Date(l.endDate) <= new Date(yearEnd)
+).length;
+
+// ⭐ NEW - Late Check-in Half Day (approved by admin from attendance)
+const lateHalfDay = leaves.filter(
+  (l) =>
+    l.type === "HALF_DAY" &&
+    l.status === "APPROVED" &&
+    l.reason === "Late check-in" && // 🔥 identify by reason
+    new Date(l.startDate) >= new Date(yearStart) &&
+    new Date(l.endDate) <= new Date(yearEnd)
+).length;
 
   // ⭐ Approved half day (count)
   const approvedHalfDay = leaves.filter(
@@ -295,6 +313,11 @@ useEffect(() => {
   };
 
   loadWeekOff();
+}, []);
+
+useEffect(() => {
+  // ✅ Refresh user data on component mount
+  useAuthStore.getState().refreshUser();
 }, []);
 
   useEffect(() => {
@@ -502,17 +525,36 @@ if (todayCheck.blocked) {
   }
   };
 
-  const updateStatus = async (id, status) => {
-    try {
-      await api.patch(`/leaves/${id}/approve`, { action: status });
-      setMsg(`Leave ${status.toLowerCase()}`);
-      setMsgType("success");
-      load();
-    } catch (err) {
-      setMsg(err?.response?.data?.message || "Action failed");
-      setMsgType("error");
-    }
-  };
+const updateStatus = async (id, status) => {
+  try {
+    // ✅ OPTIMISTIC UPDATE (instant UI change)
+    setLeaves((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { 
+              ...l, 
+              status: status === "APPROVED" ? "APPROVED" : "REJECTED" 
+            }
+          : l
+      )
+    );
+
+    // Then call backend
+    await api.patch(`/leaves/${id}/approve`, { action: status });
+    
+    setMsg(`Leave ${status.toLowerCase()}`);
+    setMsgType("success");
+    
+    // ✅ FINAL REFRESH (to get any backend-calculated fields)
+    load();
+    
+  } catch (err) {
+    // ❌ Revert on error
+    setMsg(err?.response?.data?.message || "Action failed");
+    setMsgType("error");
+    load(); // reload original data
+  }
+};
 
   return (
     <div className="space-y-10">
@@ -534,7 +576,8 @@ if (todayCheck.blocked) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard icon={<FiClock className="text-green-500" />} title="Approved Leave Days"  value={approvedLeaveDays} />
           <StatCard icon={<FiClock className="text-blue-500" />} title="Approved WFH Days" value={approvedWFHDays}/>
-          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved" value={approvedHalfDay} />
+          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved (Leave + Late Check-in)" value={approvedHalfDay} />
+          <StatCard icon={<FiClock className="text-orange-500" />} title="Late Check-in Half Day Count" value={lateHalfDay} />
           <StatCard icon={<FiClock className="text-teal-500" />} title="Comp-Off Balance" value={user?.compOffBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-green-600" />} title="Available Leave Balance"  value={user?.leaveBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-red-500" />} title="Remaining Leaves" value={`${remainingLeaves} / ${yearlyQuota}`}/>

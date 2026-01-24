@@ -2,13 +2,13 @@ import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
 import api from "../api/axios";
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
   user: null,
   accessToken: localStorage.getItem("hrms_access") || null,
   loading: true,
 
   /* ---------------------------------------------------
-     SET AUTH (LOGIN SUCCESS) — FINAL (ACCESS + REFRESH)
+     SET AUTH (LOGIN SUCCESS)
   ---------------------------------------------------- */
   setAuth: (user, accessToken, refreshToken) => {
     if (accessToken) localStorage.setItem("hrms_access", accessToken);
@@ -22,39 +22,90 @@ const useAuthStore = create((set) => ({
   },
 
   /* ---------------------------------------------------
+     SET USER (for balance updates)
+  ---------------------------------------------------- */
+  setUser: (userData) => {
+    set((state) => ({
+      user: {
+        ...state.user,
+        ...userData
+      }
+    }));
+  },
+
+  /* ---------------------------------------------------
      FINISH INITIAL LOADING
   ---------------------------------------------------- */
   finishLoading: () => set({ loading: false }),
 
   /* ---------------------------------------------------
-     AUTO LOAD USER FROM ACCESS TOKEN
-     (supports sub OR id)
+     AUTO LOAD USER FROM ACCESS TOKEN + FETCH FULL DATA
   ---------------------------------------------------- */
-  loadUserFromToken: () => {
+  loadUserFromToken: async () => {
     const token = localStorage.getItem("hrms_access");
-    if (!token) return set({ loading: false });
+    
+    if (!token) {
+      set({ loading: false, user: null, accessToken: null });
+      return;
+    }
 
     try {
+      // ✅ Decode token first
       const decoded = jwtDecode(token);
 
+      // ✅ Set basic user + token
       set({
-        // user: {
-        //   id: decoded.sub || decoded.id, // ✅ IMPORTANT FIX
-        //   role: decoded.role,
-        // },
+        user: {
+          id: decoded.sub || decoded.id,
+          role: decoded.role,
+        },
         accessToken: token,
-        loading: false,
+        loading: true, // keep loading until we fetch full data
       });
+
+      // ✅ Fetch full user data from backend (includes leaveBalance)
+      try {
+        const res = await api.get("/users/me");
+        
+        if (res.data.success) {
+          set({
+            user: res.data.user,
+            loading: false,
+          });
+        } else {
+          set({ loading: false });
+        }
+      } catch (apiErr) {
+        console.error("Failed to fetch user data:", apiErr);
+        
+        // ❌ If API fails, clear everything
+        localStorage.removeItem("hrms_access");
+        localStorage.removeItem("hrms_refresh");
+        
+        set({
+          user: null,
+          accessToken: null,
+          loading: false,
+        });
+      }
+
     } catch (err) {
       console.error("Token decode failed:", err);
+      
+      // ❌ Invalid token, clear everything
       localStorage.removeItem("hrms_access");
       localStorage.removeItem("hrms_refresh");
-      set({ loading: false });
+      
+      set({
+        user: null,
+        accessToken: null,
+        loading: false,
+      });
     }
   },
 
   /* ---------------------------------------------------
-     LOGOUT — CLEAR BOTH TOKENS
+     LOGOUT
   ---------------------------------------------------- */
   logout: () => {
     localStorage.removeItem("hrms_access");
@@ -69,22 +120,25 @@ const useAuthStore = create((set) => ({
     window.location.href = "/login";
   },
   
-refreshUser: async () => {
-  try {
-    const res = await api.get("/users/me");
+  /* ---------------------------------------------------
+     REFRESH USER (for manual updates)
+  ---------------------------------------------------- */
+  refreshUser: async () => {
+    try {
+      const res = await api.get("/users/me");
 
-    if (res.data.success) {
-      set((state) => ({
-        user: {
-          ...state.user,
-          ...res.data.user,
-        },
-      }));
+      if (res.data.success) {
+        set((state) => ({
+          user: {
+            ...state.user,
+            ...res.data.user,
+          },
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to refresh user", err);
     }
-  } catch (err) {
-    console.error("Failed to refresh user", err);
-  }
-},
+  },
 
 }));
 

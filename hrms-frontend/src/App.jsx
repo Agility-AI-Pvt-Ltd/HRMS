@@ -20,211 +20,207 @@ import WeeklyOff from "./pages/WeeklyOff";
 import HolidayPage from "./pages/HolidayPage";   
 
 import useAuthStore from "./stores/authstore";
-import api from "./api/axios";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import LayoutPremium from "./components/LayoutPremium";
 
 export default function App() {
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const finishLoading = useAuthStore((s) => s.finishLoading);
+  const loading = useAuthStore((s) => s.loading);
 
+  // ✅ MAIN FIX - Use loadUserFromToken instead of manual API call
   useEffect(() => {
-    const token = localStorage.getItem("hrms_access");
-    const refresh = localStorage.getItem("hrms_refresh");
-
-    if (!token) {
-      finishLoading();
-      return;
-    }
-
-    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-    api
-      .get("/users/me")
-      .then((r) => setAuth(r.data.user, token, refresh))
-      .catch(() => finishLoading());
+    useAuthStore.getState().loadUserFromToken();
   }, []);
 
-  return (
-  <DeviceGuard>
-    <Routes>
-
-      {/* PUBLIC ROUTES */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/unauthorized" element={<Unauthorized />} />
-
-      {/* DASHBOARD */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Dashboard />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ADMIN ONLY ROUTES */}
-      <Route
-        path="/employees"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <LayoutPremium>
-              <Employees />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-<Route
-  path="/weekly-off"
-  element={
-    <ProtectedRoute allowedRoles={["ADMIN"]}>
-      <LayoutPremium>
-        <WeeklyOff />       {/* ✔ fixed */}
-      </LayoutPremium>
-    </ProtectedRoute>
+  // ✅ Show loading screen while fetching user
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
   }
-/>
 
-      <Route
-        path="/departments"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <LayoutPremium>
-              <Departments />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
+  return (
+    <DeviceGuard>
+      <Routes>
 
-      {/* LEAVES */}
-      <Route
-        path="/leaves"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Leaves />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
+        {/* PUBLIC ROUTES */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
 
-      {/* ATTENDANCE */}
-      <Route
-        path="/attendance"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Attendance />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* PAYROLL */}
-      <Route
-        path="/payroll"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Payroll />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* NOTIFICATIONS */}
-      <Route
-        path="/notifications"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Notifications />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* PROFILE */}
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Profile />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* EMPLOYEE DETAIL PAGE */}
-      <Route
-        path="/employees/:id"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <LayoutPremium>
-              <EmployeeView />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ==============================
-          ⭐ NEW — REIMBURSEMENT ROUTES
-         ============================== */}
-
-       <Route
-         path="/reimbursements"
-         element={
+        {/* DASHBOARD */}
+        <Route
+          path="/"
+          element={
             <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
               <LayoutPremium>
-                <Reimbursement />
-               </LayoutPremium>
+                <Dashboard />
+              </LayoutPremium>
             </ProtectedRoute>
           }
         />
 
-      {/* /dashboard direct route */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Dashboard />
-            </LayoutPremium>
-          </ProtectedRoute>
-        }
-      />
-      {/* ==============================
-       ⭐ NEW — RESIGNATION ROUTE
-        ============================== */}
-      <Route
-         path="/resignation"
-         element={
-         <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
-            <LayoutPremium>
-              <Resignation />
-            </LayoutPremium>
-        </ProtectedRoute>
-        }
-      />
-      {/* HOLIDAYS (ADMIN ONLY) */}
-<Route
-  path="/holidays"
-  element={
-    <ProtectedRoute allowedRoles={["ADMIN"]}>
-      <LayoutPremium>
-        <HolidayPage />
-      </LayoutPremium>
-    </ProtectedRoute>
-  }
-/>
+        {/* ADMIN ONLY ROUTES */}
+        <Route
+          path="/employees"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <Employees />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
 
-      {/* CATCH-ALL */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route
+          path="/weekly-off"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <WeeklyOff />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/departments"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <Departments />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* LEAVES */}
+        <Route
+          path="/leaves"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Leaves />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ATTENDANCE */}
+        <Route
+          path="/attendance"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Attendance />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* PAYROLL */}
+        <Route
+          path="/payroll"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Payroll />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* NOTIFICATIONS */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Notifications />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* PROFILE */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Profile />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* EMPLOYEE DETAIL PAGE */}
+        <Route
+          path="/employees/:id"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <EmployeeView />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* REIMBURSEMENT */}
+        <Route
+          path="/reimbursements"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Reimbursement />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* DASHBOARD DIRECT ROUTE */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Dashboard />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* RESIGNATION */}
+        <Route
+          path="/resignation"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <Resignation />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* HOLIDAYS */}
+        <Route
+          path="/holidays"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <HolidayPage />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* CATCH-ALL */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </DeviceGuard>
   );
 }
