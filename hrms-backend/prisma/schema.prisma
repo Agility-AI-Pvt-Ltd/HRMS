@@ -134,7 +134,7 @@ model Attendance {
 model AttendanceCorrection {
   id          String    @id @default(uuid())
   userId      String
-  date        DateTime
+  date        DateTime   @db.Date 
   reason      String
   status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
   adminReason String?

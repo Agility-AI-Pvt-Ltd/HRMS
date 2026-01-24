@@ -61,12 +61,25 @@ attMap[iso] = {
   present:
     a.status === "PRESENT" ||
     a.status === "LATE" ||
-    a.status === "ON_TIME" ||
-    !!a.checkIn,
+    a.status === "ON_TIME",
 
   wfh: a.status === "WFH",
-  leave: a.status === "LEAVE",
+  compOff: a.status === "COMP_OFF",
+  leave:
+  a.status === "LEAVE" ||
+  a.status === "PAID" ||
+  a.status === "SICK" ||
+  a.status === "CASUAL" ||
+  a.status === "UNPAID",
   halfDay: a.status === "HALF_DAY",
+  holiday: a.status === "HOLIDAY",
+  
+  weekOff:
+    a.status === "WEEKOFF" ||
+    a.status === "WEEK_OFF",
+
+  weekOffPresent:
+    a.status === "WEEKOFF_PRESENT",
 };
   });
 
@@ -113,6 +126,10 @@ attMap[iso] = {
           if (c.present) clsLight = "bg-green-200/40 border-green-500 text-green-700";
           else if (c.wfh) clsLight = "bg-blue-200/40 border-blue-500 text-blue-700";
           else if (c.halfDay) clsLight = "bg-purple-200/40 border-purple-500 text-purple-700";
+          else if (c.compOff) clsLight = "bg-amber-200/40 border-amber-500 text-amber-700";
+          else if (c.weekOffPresent) clsLight = "bg-gray-400/50 border-gray-600 text-gray-800";
+          else if (c.weekOff) clsLight = "bg-orange-200/50 border-orange-500 text-orange-700";
+          else if (c.holiday) clsLight = "bg-gradient-to-br from-yellow-200 via-yellow-200 to-orange-200 " + "border-orange-500 text-orange-800";
           else if (c.leave) clsLight = "bg-yellow-200/40 border-yellow-500 text-yellow-700";
           else if (c.isFuture) clsLight = "bg-gray-300/30 border-gray-400 text-gray-500";
           else clsLight = "bg-red-200/40 border-red-500 text-red-700";
@@ -120,7 +137,15 @@ attMap[iso] = {
           // 🌚 DARK MODE SOLID COLORS (visible)
     if (c.present) clsDark = "dark:bg-green-700 dark:border-green-400 dark:text-green-100";
 else if (c.halfDay) clsDark = "dark:bg-purple-700 dark:border-purple-400 dark:text-purple-100";
+else if (c.compOff) clsDark = "dark:bg-amber-700 dark:border-amber-400 dark:text-amber-100";
 else if (c.wfh) clsDark = "dark:bg-blue-700 dark:border-blue-400 dark:text-blue-100";
+else if (c.weekOffPresent) clsDark = "dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100";
+else if (c.weekOff) clsDark = "dark:bg-orange-700 dark:border-orange-400 dark:text-orange-100";
+else if (c.holiday)
+  clsDark =
+    "dark:bg-gradient-to-br dark:from-yellow-600 dark:via-orange-400 dark:to-orange-600 " +
+    "dark:border-orange-400 dark:text-orange-100";
+
 else if (c.leave) clsDark = "dark:bg-yellow-700 dark:border-yellow-400 dark:text-yellow-100";
 else if (c.isFuture) clsDark = "dark:bg-gray-700 dark:border-gray-500 dark:text-gray-300";
 else clsDark = "dark:bg-red-700 dark:border-red-400 dark:text-red-100";
@@ -222,18 +247,50 @@ const attendanceBar = useMemo(() => {
     present: 0,
     wfh: 0,
     leave: 0,
-    halfDay: 0,  
+    halfDay: 0,
+    compOff: 0,   
   }));
 
-  data.stats.attendance.forEach((a) => {
-    const date = new Date(a.date);
-    const m = date.getMonth();
+data.stats.attendance.forEach((a) => {
+  const d = new Date(a.date);
+  const m = d.getMonth();
 
-    if (a.checkIn) months[m].present += 1;
-    if (a.status === "WFH") months[m].wfh += 1;
-    if (a.status === "LEAVE") months[m].leave += 1;
-    if (a.status === "HALF_DAY") months[m].halfDay += 0.5;
-  });
+  switch (a.status) {
+    case "PRESENT":
+    case "LATE":
+    case "ON_TIME":
+      months[m].present += 1;
+      break;
+
+    case "WFH":
+      months[m].wfh += 1;
+      break;
+
+   case "LEAVE":
+case "PAID":
+case "SICK":
+case "CASUAL":
+case "UNPAID":
+  months[m].leave += 1;
+  break;
+
+    case "HALF_DAY":
+      months[m].halfDay += 0.5;
+      break;
+
+    case "COMP_OFF":
+      months[m].compOff += 1;
+      break;
+
+      case "HOLIDAY":
+case "WEEKOFF":
+case "WEEKOFF_PRESENT":
+  break;
+
+    default:
+      break; // WEEKOFF / ABSENT ignored
+  }
+});
 
   // 🔥 REAL MAX VALUE
 const maxValue = Math.max(
@@ -269,7 +326,12 @@ datasets: [
     label: "WFH",
     data: months.map((m) => m.wfh),
     backgroundColor: "#3B82F6",
-  }
+  },
+  {
+    label: "Comp-Off",
+    data: months.map((m) => m.compOff),
+    backgroundColor: "#D97706", // 🟤 light brown
+  },
 ],
     autoMax,
   };
@@ -285,8 +347,8 @@ datasets: [
   );
 
 const InfoBox = ({ title, subtitle, icon }) => (
-  <div className="flex items-center gap-4 p-4 min-h-[90px] bg-white/70 dark:bg-gray-800/50 rounded-2xl shadow">
-    <div className="w-12 h-12 shrink-0 rounded-lg bg-indigo-500 text-white flex items-center justify-center font-bold">
+<div className="flex items-center gap-3 px-4 py-3 min-h-[96px] bg-white/70 dark:bg-gray-800/50 rounded-2xl shadow">
+    <div className="w-10 h-10 shrink-0 rounded-lg bg-indigo-500 text-white flex items-center justify-center font-bold">
       {icon}
     </div>
     <div className="min-w-0">
@@ -361,10 +423,9 @@ const InfoBox = ({ title, subtitle, icon }) => (
         <div className="lg:col-span-8 space-y-6">
           
           {/* KPI ROW */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {loading ? (
               <>
-                <Skeleton className="h-20" />
                 <Skeleton className="h-20" />
                 <Skeleton className="h-20" />
                 <Skeleton className="h-20" />
@@ -372,14 +433,14 @@ const InfoBox = ({ title, subtitle, icon }) => (
             ) : (
               <>
                 <InfoBox title="Days Present" subtitle={data.stats.presentDays} icon="✓" />
-                <InfoBox
+                {/* <InfoBox
   title="Total Leaves + Half_days Applied"
   subtitle={data.stats.appliedLeaveDays}
   icon="L"
-/>
+/> */}
 
 <InfoBox
-  title="Approved Leaves + Half_days"
+  title="Approved Leaves + Half_Days + CompOff"
   subtitle={data.stats.approvedLeaveDays}
   icon="A"
 />

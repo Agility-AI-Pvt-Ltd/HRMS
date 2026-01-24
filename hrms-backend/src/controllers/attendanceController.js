@@ -180,15 +180,13 @@ if (leaveToday && !["WFH", "HALF_DAY"].includes(leaveToday.type)) {
     /* =====================================================
        4️⃣ DUPLICATE CHECK
     ===================================================== */
-    const existing = await prisma.attendance.findFirst({
-      where: {
-        userId: user.id,
-        date: {
-          gte: new Date(todayISO + "T00:00:00"),
-          lte: new Date(todayISO + "T23:59:59.999")
-        }
-      }
-    });
+const existing = await prisma.attendance.findFirst({
+  where: {
+    userId: user.id,
+    checkOut: null   // 🔥 key fix
+  },
+  orderBy: { checkIn: "desc" }
+});
 
     if (existing?.checkIn) {
       return res.json({
@@ -464,10 +462,23 @@ today.setHours(0, 0, 0, 0);
       cur.setDate(cur.getDate() + 1);
     }
 
+const corrections = await prisma.attendanceCorrection.findMany({
+  where: { userId },
+});
+
+const correctionMap = {};
+corrections.forEach(c => {
+  correctionMap[toLocalISO(c.date)] = {
+    status: c.status,
+    adminReason: c.adminReason,
+  };
+});
+
     return res.json({
       success: true,
       attendances: dailyLogs,
-      calendar
+      calendar,
+      corrections: correctionMap,
     });
 
   } catch (err) {
@@ -772,7 +783,7 @@ if (alreadyLeave) {
           status: "APPROVED",
           startDate: attendance.date,
           endDate: attendance.date,
-          reason: "Late check-in"
+          reason: "Late Check-in"
         }
       });
 
@@ -968,7 +979,7 @@ if (format === "csv") {
     date: toLocalISO(r.date),
     checkIn: formatIST(r.checkIn),
     checkOut: formatIST(r.checkOut),
-    status: r.status,
+    status: r.lateHalfDayEligible ? "HALF_DAY_PENDING" : r.status,
   }));
   
    const parser = new Parser({
@@ -999,7 +1010,7 @@ if (format === "csv") {
         date: toLocalISO(r.date),
         checkIn: formatIST(r.checkIn),
         checkOut: formatIST(r.checkOut),
-        status: r.status
+        status: r.lateHalfDayEligible ? "HALF_DAY_PENDING" : r.status,
       });
     });
 

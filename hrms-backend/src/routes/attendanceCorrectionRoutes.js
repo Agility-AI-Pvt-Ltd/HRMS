@@ -8,21 +8,23 @@ import { requireAuth } from "../middlewares/auth.js";
 
 const router = express.Router();
 
-// EMPLOYEE
+/* ================= EMPLOYEE ================= */
+// Request present correction
 router.post(
-  "/",
+  "/request",
   requireAuth(["AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   requestPresentCorrection
 );
 
-// ADMIN - list
+/* ================= ADMIN ================= */
+// Get all correction requests
 router.get(
-  "/",
+  "/all",
   requireAuth(["ADMIN"]),
   getAllAttendanceCorrections
 );
 
-// ADMIN - decision
+// Approve / Reject correction
 router.post(
   "/decision",
   requireAuth(["ADMIN"]),

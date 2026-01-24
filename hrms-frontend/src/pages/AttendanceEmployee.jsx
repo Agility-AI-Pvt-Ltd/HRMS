@@ -122,6 +122,8 @@ export default function AttendanceEmployee() {
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionDate, setCorrectionDate] = useState(null);
 
+  const [corrections, setCorrections] = useState({});
+
   const openCorrectionPopup = (date) => {
     setCorrectionDate(date);
     setCorrectionOpen(true);
@@ -190,6 +192,7 @@ export default function AttendanceEmployee() {
       }));
 
       setFullData({ calendar: calendarMap, logs });
+      setCorrections(res.data.corrections || {});
 
       /* ⭐ KPI CALCULATION (from full year) */
 const present = Object.values(calendarMap).filter(s => s === "PRESENT" || s === "LATE").length;
@@ -837,8 +840,8 @@ return (
     key={log.id}
     className="p-3 rounded-xl border shadow bg-white dark:bg-gray-800 
     dark:border-[#2a2c33] flex flex-col sm:flex-row justify-between items-center gap-3"
-  >
 
+  >
 
     {/* LEFT SIDE */}
     <div>
@@ -871,14 +874,37 @@ return (
         )}
       </div>
     </div>
- {(() => {
-  const todayIso = toISODate(new Date());
 
-  // ❌ Today ke liye request allowed nahi
+{(() => {
+  const todayIso = toISODate(new Date());
+  const correction = corrections[log.date];
+
+  // ❌ Today ke liye request nahi
   if (log.date === todayIso) return null;
 
-  // ✅ Sirf past ABSENT dates ke liye
-  if (log.status === "ABSENT") {
+  // ❌ Sirf ABSENT ke liye
+  if (log.status !== "ABSENT") return null;
+
+  // 🟡 Pending
+  if (correction?.status === "PENDING") {
+    return (
+      <span className="px-2 py-1 text-xs font-bold rounded bg-yellow-300 text-black">
+        Wait for Admin Decision
+      </span>
+    );
+  }
+
+  // 🔴 Rejected
+  if (correction?.status === "REJECTED") {
+    return (
+      <div className="text-xs text-red-600 font-semibold">
+       Rejected : {correction.adminReason || "No reason given"}
+      </div>
+    );
+  }
+
+  // 🟢 No request yet
+  if (!correction) {
     return (
       <button
         onClick={() => openCorrectionPopup(log.date)}
@@ -942,22 +968,29 @@ return (
   <AttendanceCorrectionPopup
     date={correctionDate}
     onClose={() => setCorrectionOpen(false)}
-    onSuccess={async (reason) => {
-      try {
-       await api.post("/attendance-corrections", {
-          date: correctionDate,
-          reason,
-        });
+onSuccess={async (reason) => {
+  try {
+    await api.post("/attendance-corrections/request", {
+      date: correctionDate,
+      reason,
+    });
 
-        setCorrectionOpen(false);
-        await loadFullYear();
-        loadAttendance(filters);
-      } catch (e) {
-        setError(
-          e?.response?.data?.message || "Correction request failed"
-        );
+    // ⭐ instant UI update
+    setCorrections(prev => ({
+      ...prev,
+      [correctionDate]: {
+        status: "PENDING",
+        adminReason: null
       }
-    }}
+    }));
+
+    setCorrectionOpen(false);
+  } catch (e) {
+    setError(
+      e?.response?.data?.message || "Correction request failed"
+    );
+  }
+}}
   />
 )}
 

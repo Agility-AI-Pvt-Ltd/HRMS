@@ -4,6 +4,20 @@ import {
   findActiveEmployees
 } from "../services/userService.js";
 
+const WEEKDAY_MAP = {
+  Sunday: 0,
+  Monday: 1,
+  Tuesday: 2,
+  Wednesday: 3,
+  Thursday: 4,
+  Friday: 5,
+  Saturday: 6,
+};
+
+const sameDay = (d1, d2) =>
+  new Date(d1).toISOString().slice(0, 10) ===
+  new Date(d2).toISOString().slice(0, 10);
+
 /* =====================================================
    Helper: Today Range (00:00 → 23:59)
 ===================================================== */
@@ -235,6 +249,11 @@ if (!user.isActive) {
       orderBy: { date: "asc" }
     });
 
+    // 🔥 FETCH WEEKLY OFF CONFIG
+const weeklyOffs = await prisma.weeklyOff.findMany({
+  where: { userId: uid }
+});
+
     /* ---------------- SAME HELPER AS LEAVES UI ---------------- */
     const getUniqueLeaveUnits = (leaves) => {
       const dayMap = {}; // { "2025-02-12": 1 | 0.5 }
@@ -307,42 +326,112 @@ if (!user.isActive) {
     /* ================= ATTENDANCE MERGE ================= */
 
     const mergedAttendance = [...rawAttendance];
+    // 🔥 ADD WEEKOFFS FOR FULL YEAR
+const yearCursor = new Date(yearStart);
 
-    allLeaves
-      .filter((l) => l.status === "APPROVED")
-      .forEach((l) => {
-        let cur = new Date(l.startDate);
-        const end = new Date(l.endDate);
+while (yearCursor <= yearEnd) {
+  const iso = yearCursor.toISOString().slice(0, 10);
 
-        const status =
-          l.type === "WFH"
-            ? "WFH"
-            : l.type === "HALF_DAY"
-            ? "HALF_DAY"
-            : "LEAVE";
+ const exists = mergedAttendance.some((a) =>
+  sameDay(a.date, yearCursor)
+);
 
-        while (cur <= end) {
-          const iso = cur.toISOString().slice(0, 10);
+  if (!exists) {
+    const dayIndex = yearCursor.getDay();
 
-          const exists = mergedAttendance.some((a) => {
-            const d =
-              typeof a.date === "string"
-                ? a.date.slice(0, 10)
-                : a.date.toISOString().slice(0, 10);
-            return d === iso;
-          });
+    const isWeeklyOff = weeklyOffs.some(
+      (w) =>
+        w.isFixed &&
+        WEEKDAY_MAP[w.offDay] === dayIndex
+    );
 
-          if (!exists) {
-            mergedAttendance.push({
-              date: iso,
-              checkIn: false,
-              status
-            });
-          }
-
-          cur.setDate(cur.getDate() + 1);
-        }
+    if (isWeeklyOff) {
+      mergedAttendance.push({
+        date: new Date(yearCursor),
+        status: "WEEKOFF",
+        checkIn: null,
       });
+    }
+  }
+
+  yearCursor.setDate(yearCursor.getDate() + 1);
+}
+
+const holidays = await prisma.holiday.findMany({
+  where: {
+    date: {
+      gte: yearStart,
+      lte: yearEnd
+    }
+  }
+});
+
+// 🔥 ADD HOLIDAYS (NO PRESENT ON HOLIDAY)
+holidays.forEach((h) => {
+  const holidayDate = new Date(h.date);
+
+  const exists = mergedAttendance.some((a) =>
+    sameDay(a.date, holidayDate)
+  );
+
+  if (!exists) {
+    mergedAttendance.push({
+      date: new Date(holidayDate),
+      status: "HOLIDAY",
+      checkIn: null, // ❌ NO PRESENT ON HOLIDAY
+      title: h.title
+    });
+  }
+});
+
+// 🔥 APPROVED LEAVES → ATTENDANCE MERGE
+allLeaves
+  .filter(
+    (l) =>
+      l.status === "APPROVED" &&
+      new Date(l.startDate) <= yearEnd &&
+      new Date(l.endDate) >= yearStart
+  )
+  .forEach((l) => {
+    let cur = new Date(l.startDate);
+    const end = new Date(l.endDate);
+
+let status = "LEAVE";
+
+if (l.type === "WFH") status = "WFH";
+else if (l.type === "HALF_DAY") status = "HALF_DAY";
+else if (l.type === "COMP_OFF") status = "COMP_OFF";
+
+    while (cur <= end) {
+      const iso = cur.toISOString().slice(0, 10);
+
+const exists = mergedAttendance.some((a) =>
+  sameDay(a.date, cur)
+);
+
+      if (!exists) {
+        mergedAttendance.push({
+          date: new Date(cur),
+          status,
+          checkIn: null,
+        });
+      }
+
+      cur.setDate(cur.getDate() + 1);
+    }
+  });
+mergedAttendance.forEach((a) => {
+  if (
+    a.status === "WEEKOFF" &&
+    rawAttendance.some(
+      (r) =>
+        sameDay(r.date, a.date) &&
+        r.checkIn
+    )
+  ) {
+    a.status = "WEEKOFF_PRESENT";
+  }
+});
 
     mergedAttendance.sort((a, b) => new Date(a.date) - new Date(b.date));
 

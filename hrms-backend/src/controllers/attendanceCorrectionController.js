@@ -8,19 +8,26 @@ export const requestPresentCorrection = async (req, res) => {
     return res.status(400).json({ message: "Date & reason required" });
   }
 
-  const day = new Date(date);
-  day.setHours(0,0,0,0);
+const [y, m, d] = date.split("-").map(Number);
+// 🔥 PURE DATE (no timezone shift)
+const day = new Date(Date.UTC(y, m - 1, d));
 
   // Check attendance is ABSENT
-  const attendance = await prisma.attendance.findFirst({
-    where: {
-      userId,
-      date: {
-        gte: day,
-        lte: new Date(day.getTime() + 86400000 - 1)
-      }
+const start = new Date(day);
+start.setHours(0,0,0,0);
+
+const end = new Date(day);
+end.setHours(23,59,59,999);
+
+const attendance = await prisma.attendance.findFirst({
+  where: {
+    userId,
+    date: {
+      gte: start,
+      lte: end
     }
-  });
+  }
+});
 
   if (attendance && attendance.status !== "ABSENT") {
     return res.status(400).json({

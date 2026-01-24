@@ -79,7 +79,7 @@ const STATUS_LABELS = {
   WEEKOFF: "WeekOff",
   WFH: "WFH",
   HALF_DAY: "Half Day",
-  HALF_DAY_PENDING: "Half Day By Late Check-In",
+  HALF_DAY_PENDING: "Half Day By Late Check-in",
   COMP_OFF: "CompOff",
   ABSENT: "Absent",
 };

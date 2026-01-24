@@ -297,6 +297,11 @@ useEffect(() => {
   loadWeekOff();
 }, []);
 
+useEffect(() => {
+  // ✅ Refresh user data on component mount
+  useAuthStore.getState().refreshUser();
+}, []);
+
   useEffect(() => {
     if (!msg) return;
     const t = setTimeout(() => setMsg(""), 3000);
@@ -502,17 +507,36 @@ if (todayCheck.blocked) {
   }
   };
 
-  const updateStatus = async (id, status) => {
-    try {
-      await api.patch(`/leaves/${id}/approve`, { action: status });
-      setMsg(`Leave ${status.toLowerCase()}`);
-      setMsgType("success");
-      load();
-    } catch (err) {
-      setMsg(err?.response?.data?.message || "Action failed");
-      setMsgType("error");
-    }
-  };
+const updateStatus = async (id, status) => {
+  try {
+    // ✅ OPTIMISTIC UPDATE (instant UI change)
+    setLeaves((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { 
+              ...l, 
+              status: status === "APPROVED" ? "APPROVED" : "REJECTED" 
+            }
+          : l
+      )
+    );
+
+    // Then call backend
+    await api.patch(`/leaves/${id}/approve`, { action: status });
+    
+    setMsg(`Leave ${status.toLowerCase()}`);
+    setMsgType("success");
+    
+    // ✅ FINAL REFRESH (to get any backend-calculated fields)
+    load();
+    
+  } catch (err) {
+    // ❌ Revert on error
+    setMsg(err?.response?.data?.message || "Action failed");
+    setMsgType("error");
+    load(); // reload original data
+  }
+};
 
   return (
     <div className="space-y-10">
