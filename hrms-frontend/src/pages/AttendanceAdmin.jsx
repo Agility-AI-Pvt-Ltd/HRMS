@@ -13,9 +13,9 @@ const formatTime = (v) => {
 
   const d = new Date(v);
 
-  // 🔥 FORCE UTC → IST rollback (−5:30)
-  d.setHours(d.getHours() - 5);
-  d.setMinutes(d.getMinutes() - 30);
+  // // 🔥 FORCE UTC → IST rollback (−5:30)
+  // d.setHours(d.getHours() - 5);
+  // d.setMinutes(d.getMinutes() - 30);
 
   return d.toLocaleTimeString("en-IN", {
     hour: "2-digit",

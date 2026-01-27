@@ -23,8 +23,8 @@ const formatTime = (v) => {
 
   const d = new Date(v);
 
-  // 🔥 subtract 5 hours 30 minutes
-  d.setMinutes(d.getMinutes() - 330);
+  // // 🔥 subtract 5 hours 30 minutes
+  // d.setMinutes(d.getMinutes() - 330);
 
   return d.toLocaleTimeString("en-IN", {
     hour: "2-digit",
