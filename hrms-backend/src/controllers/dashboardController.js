@@ -396,27 +396,31 @@ allLeaves
     let cur = new Date(l.startDate);
     const end = new Date(l.endDate);
 
-let status = "LEAVE";
+let status = l.type;   // ⭐ REAL TYPE SEND KARO
 
 if (l.type === "WFH") status = "WFH";
 else if (l.type === "HALF_DAY") status = "HALF_DAY";
 else if (l.type === "COMP_OFF") status = "COMP_OFF";
+else status = l.type; // PAID / SICK / CASUAL / UNPAID
 
     while (cur <= end) {
       const iso = cur.toISOString().slice(0, 10);
 
-const exists = mergedAttendance.some((a) =>
+const existingIndex = mergedAttendance.findIndex((a) =>
   sameDay(a.date, cur)
 );
 
-      if (!exists) {
-        mergedAttendance.push({
-          date: new Date(cur),
-          status,
-          checkIn: null,
-        });
-      }
-
+if (existingIndex !== -1) {
+  // 🔥 LEAVE overrides WEEKOFF / HOLIDAY
+  mergedAttendance[existingIndex].status = status;
+  mergedAttendance[existingIndex].checkIn = null;
+} else {
+  mergedAttendance.push({
+    date: new Date(cur),
+    status,
+    checkIn: null,
+  });
+}
       cur.setDate(cur.getDate() + 1);
     }
   });
