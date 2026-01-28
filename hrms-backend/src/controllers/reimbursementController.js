@@ -99,7 +99,7 @@ export const uploadReimbursementFiles = async (req, res) => {
         .json({ success: false, message: "No files uploaded" });
 
     const files = req.files.map((f) => ({
-      fileUrl: `${process.env.BASE_URL}/uploads/reimbursements/${f.filename}`,
+      fileUrl: `${process.env.BACKEND_URL}/uploads/reimbursements/${f.filename}`,
     }));
 
     res.json({ success: true, files });
