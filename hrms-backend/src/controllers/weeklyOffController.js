@@ -71,7 +71,6 @@ export const getWeeklyOffByUserId = async (req, res) => {
       success: true,
       weekOff: data || null,
     });
-
   } catch (e) {
     console.error("WeeklyOff by UserId Error:", e);
     return res.status(500).json({
@@ -89,7 +88,7 @@ export const assignWeeklyOff = async (req, res) => {
     const { userId, offDay, offDate, isFixed } = req.body;
 
     if (!userId) return res.status(400).json({ message: "UserId required" });
-        const user = await prisma.user.findFirst({
+    const user = await prisma.user.findFirst({
       where: {
         id: userId,
         isActive: true,
@@ -103,7 +102,10 @@ export const assignWeeklyOff = async (req, res) => {
       });
     }
 
-    if (!offDay && !offDate) return res.status(400).json({ message: "Either offDay or offDate required" });
+    if (!offDay && !offDate)
+      return res
+        .status(400)
+        .json({ message: "Either offDay or offDate required" });
 
     const existing = await prisma.weeklyOff.findFirst({ where: { userId } });
 
@@ -111,55 +113,61 @@ export const assignWeeklyOff = async (req, res) => {
     if (existing) {
       const updated = await prisma.weeklyOff.update({
         where: { id: existing.id },
-        data: { offDay, offDate: offDate || null, isFixed }
+        data: { offDay, offDate: offDate || null, isFixed },
       });
-      return res.json({ success:true, message:"Weekly Off Updated", data: updated });
+      return res.json({
+        success: true,
+        message: "Weekly Off Updated",
+        data: updated,
+      });
     }
 
     // Create new
     const data = await prisma.weeklyOff.create({
-      data: { userId, offDay, offDate: offDate || null, isFixed }
+      data: { userId, offDay, offDate: new Date(offDate) || null, isFixed },
     });
 
-    return res.json({ success:true, message:"Weekly Off Assigned", data });
-
+    return res.json({ success: true, message: "Weekly Off Assigned", data });
   } catch (e) {
     console.error("WeeklyOff Assign Error:", e);
-    return res.status(500).json({ success:false, message:"Server Error while assigning weekly off" });
+    return res.status(500).json({
+      success: false,
+      message: "Server Error while assigning weekly off",
+    });
   }
 };
-
 
 /* =====================================================
    GET ALL (GET)
 ===================================================== */
-export const getWeeklyOffs = async (req,res)=>{
+export const getWeeklyOffs = async (req, res) => {
   try {
     const data = await prisma.weeklyOff.findMany({
-       where: { user: { isActive: true,
+      where: { user: { isActive: true } },
+      include: {
+        user: {
+          select: { firstName: true, lastName: true, email: true, role: true },
         },
       },
-      include:{ user:{ select:{ firstName:true,lastName:true,email:true,role:true }}}
     });
 
-    return res.json({ success:true, data });
-
+    return res.json({ success: true, data });
   } catch (e) {
     console.error("WeeklyOff Fetch Error:", e);
-    return res.status(500).json({ success:false,message:"Failed to fetch weekly offs" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch weekly offs" });
   }
 };
-
 
 /* =====================================================
    UPDATE SPECIFIC WEEKLY-OFF BY ID (PUT)
 ===================================================== */
-export const updateWeeklyOff = async (req,res)=>{
-  try{
+export const updateWeeklyOff = async (req, res) => {
+  try {
     const { id } = req.params;
     const { offDay, offDate, isFixed } = req.body;
 
-    
     const weeklyOff = await prisma.weeklyOff.findFirst({
       where: {
         id,
@@ -177,18 +185,20 @@ export const updateWeeklyOff = async (req,res)=>{
     }
 
     const updated = await prisma.weeklyOff.update({
-      where:{ id },
-      data:{ offDay, offDate:offDate||null, isFixed }
+      where: { id },
+      data: { offDay, offDate: offDate || null, isFixed },
     });
 
-    return res.json({ success:true,message:"Weekly Off Updated Successfully", data:updated });
-
-  }catch(e){
+    return res.json({
+      success: true,
+      message: "Weekly Off Updated Successfully",
+      data: updated,
+    });
+  } catch (e) {
     console.error("Update WeeklyOff Error:", e);
-    return res.status(500).json({success:false,message:"Update failed"});
+    return res.status(500).json({ success: false, message: "Update failed" });
   }
 };
-
 
 /* =====================================================
    DELETE WEEKLY-OFF (DELETE)
@@ -210,10 +220,12 @@ export const removeWeeklyOff = async (req, res) => {
         message: "Cannot remove weekly off for deactivated user",
       });
     }
-    await prisma.weeklyOff.delete({ where:{ id:req.params.id }});
-    return res.json({ success:true, message:"Weekly Off removed" });
+    await prisma.weeklyOff.delete({ where: { id: req.params.id } });
+    return res.json({ success: true, message: "Weekly Off removed" });
   } catch (e) {
     console.error("Delete WeeklyOff Error:", e);
-    return res.status(500).json({ success:false, message:"Error removing weekly off" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Error removing weekly off" });
   }
 };

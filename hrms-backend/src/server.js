@@ -1,4 +1,5 @@
 // src/server.js
+import "./services/autoLeavesForNoCheckIn.js";
 import dotenv from "dotenv";
 import http from "http";
 import prisma from "./prismaClient.js";
@@ -28,7 +29,10 @@ async function startServer() {
       await prisma.$connect();
       console.log("✅ Connected to PostgreSQL database");
     } catch (dbErr) {
-      console.error("⚠️ Database connection failed, but server is running:", dbErr.message);
+      console.error(
+        "⚠️ Database connection failed, but server is running:",
+        dbErr.message,
+      );
       // Server continues running even if DB connection fails initially
     }
   } catch (err) {
