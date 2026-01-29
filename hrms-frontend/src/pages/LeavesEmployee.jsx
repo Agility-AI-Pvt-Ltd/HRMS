@@ -10,7 +10,7 @@ function checkHolidayOrWeekOff(dateISO, holidays = [], weekOff) {
   const d = new Date(dateISO);
   const dayName = d.toLocaleDateString("en-US", { weekday: "long" });
 
-  const isHoliday = holidays.some(h => h.date === dateISO);
+  const isHoliday = holidays.some((h) => h.date === dateISO);
 
   if (isHoliday) {
     return { blocked: true, reason: "HOLIDAY" };
@@ -18,10 +18,8 @@ function checkHolidayOrWeekOff(dateISO, holidays = [], weekOff) {
 
   const isWeekOff =
     weekOff &&
-    (
-      (weekOff.isFixed && weekOff.offDay === dayName) ||
-      (!weekOff.isFixed && weekOff.offDate === dateISO)
-    );
+    ((weekOff.isFixed && weekOff.offDay === dayName) ||
+      (!weekOff.isFixed && weekOff.offDate === dateISO));
 
   if (isWeekOff) {
     return { blocked: true, reason: "WEEK_OFF" };
@@ -42,14 +40,12 @@ function getChargeableLeaveDays(leaves, holidays = [], weekOff) {
       const iso = cur.toISOString().slice(0, 10);
       const dayName = cur.toLocaleDateString("en-US", { weekday: "long" });
 
-      const isHoliday = holidays.some(h => h.date === iso);
+      const isHoliday = holidays.some((h) => h.date === iso);
 
       const isWeekOff =
         weekOff &&
-        (
-          (weekOff.isFixed && weekOff.offDay === dayName) ||
-          (!weekOff.isFixed && weekOff.offDate === iso)
-        );
+        ((weekOff.isFixed && weekOff.offDay === dayName) ||
+          (!weekOff.isFixed && weekOff.offDate === iso));
 
       // ⛔ skip holiday & weekoff
       if (!isHoliday && !isWeekOff) {
@@ -65,7 +61,7 @@ function getChargeableLeaveDays(leaves, holidays = [], weekOff) {
 
 // --- Merge overlapping leave date ranges (unique days) ---
 function getUniqueLeaveDays(leaves) {
-  const ranges = leaves.map(l => ({
+  const ranges = leaves.map((l) => ({
     start: new Date(l.startDate),
     end: new Date(l.endDate),
   }));
@@ -137,12 +133,11 @@ export default function Leaves() {
   const [weekOff, setWeekOff] = useState(null);
 
   const calcLeaveDays = (startDate, endDate) => {
-  if (!startDate || !endDate) return 0;
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
-};
-
+    if (!startDate || !endDate) return 0;
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+    return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
+  };
 
   const [form, setForm] = useState({
     type: "CASUAL",
@@ -177,36 +172,35 @@ export default function Leaves() {
   //   return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
   // };
 
-const confirmDeleteLeave = async () => {
-  try {
-    await api.delete(`/leaves/${deleteId}`);
-    setMsg("Leave deleted successfully");
-    setMsgType("success");
-    load();
-  } catch (err) {
-    setMsg(err?.response?.data?.message || "Failed to delete leave");
-    setMsgType("error");
-  } finally {
-    setShowDelete(false);
-    setDeleteId(null);
-  }
-};
+  const confirmDeleteLeave = async () => {
+    try {
+      await api.delete(`/leaves/${deleteId}`);
+      setMsg("Leave deleted successfully");
+      setMsgType("success");
+      load();
+    } catch (err) {
+      setMsg(err?.response?.data?.message || "Failed to delete leave");
+      setMsgType("error");
+    } finally {
+      setShowDelete(false);
+      setDeleteId(null);
+    }
+  };
 
   // ⭐ Unique approved leave days (excluding WFH and UNPAID)
-const approvedLeaveDays = React.useMemo(() => {
-  return getChargeableLeaveDays(
-    leaves.filter(
-      l =>
-        l.status === "APPROVED" &&
-        l.type !== "WFH" &&
-        l.type !== "UNPAID" &&
-        l.type !== "COMP_OFF"
-    ),
-    holidaysList,
-    weekOff
-  );
-}, [leaves, holidaysList, weekOff]);
-
+  const approvedLeaveDays = React.useMemo(() => {
+    return getChargeableLeaveDays(
+      leaves.filter(
+        (l) =>
+          l.status === "APPROVED" &&
+          l.type !== "WFH" &&
+          l.type !== "UNPAID" &&
+          l.type !== "COMP_OFF",
+      ),
+      holidaysList,
+      weekOff,
+    );
+  }, [leaves, holidaysList, weekOff]);
 
   // ⭐ Approved WFH unique days
   const approvedWFHDays = getUniqueLeaveDays(
@@ -215,10 +209,9 @@ const approvedLeaveDays = React.useMemo(() => {
         l.type?.toUpperCase() === "WFH" &&
         l.status === "APPROVED" &&
         new Date(l.startDate) >= new Date(yearStart) &&
-        new Date(l.endDate) <= new Date(yearEnd)
-    )
+        new Date(l.endDate) <= new Date(yearEnd),
+    ),
   );
-
 
   // ⭐ Approved half day (count)
   const approvedHalfDay = leaves.filter(
@@ -226,64 +219,61 @@ const approvedLeaveDays = React.useMemo(() => {
       l.type?.toUpperCase() === "HALF_DAY" &&
       l.status === "APPROVED" &&
       new Date(l.startDate) >= new Date(yearStart) &&
-      new Date(l.endDate) <= new Date(yearEnd)
+      new Date(l.endDate) <= new Date(yearEnd),
   ).length;
 
   // ⭐ Remaining leaves
-const yearlyQuota = user?.stats?.yearlyQuota ?? 21;
+  const yearlyQuota = user?.stats?.yearlyQuota ?? 21;
 
-const remainingLeaves = Math.max(
-  yearlyQuota - approvedLeaveDays,
-  0
-);
+  const remainingLeaves = Math.max(yearlyQuota - approvedLeaveDays, 0);
 
-    useEffect(() => {
-  const loadHolidays = async () => {
-    try {
-      const res = await api.get("/holidays");
-      setHolidaysList(
-        res.data.holidays.map(h => ({
-          date: h.date.slice(0, 10),
-          title: h.title
-        }))
-      );
-    } catch (e) {
-      console.error("Failed to load holidays", e);
-    }
-  };
+  useEffect(() => {
+    const loadHolidays = async () => {
+      try {
+        const res = await api.get("/holidays");
+        setHolidaysList(
+          res.data.holidays.map((h) => ({
+            date: h.date.slice(0, 10),
+            title: h.title,
+          })),
+        );
+      } catch (e) {
+        console.error("Failed to load holidays", e);
+      }
+    };
 
-  loadHolidays();
-}, []);
+    loadHolidays();
+  }, []);
 
-useEffect(() => {
-  const loadWeekOff = async () => {
-    try {
-      const res = await api.get("/weekly-off/me");
-      setWeekOff(res.data.weekOff);
-    } catch (e) {
-      console.error("Failed to load weekoff", e);
-    }
-  };
+  useEffect(() => {
+    const loadWeekOff = async () => {
+      try {
+        const res = await api.get("/weekly-off/me");
+        setWeekOff(res.data.weekOff);
+      } catch (e) {
+        console.error("Failed to load weekoff", e);
+      }
+    };
 
-  loadWeekOff();
-}, []);
+    loadWeekOff();
+  }, []);
 
-useEffect(() => {
-  // ✅ Refresh user data on component mount
-  useAuthStore.getState().refreshUser();
-}, []);
+  useEffect(() => {
+    // ✅ Refresh user data on component mount
+    useAuthStore.getState().refreshUser();
+  }, []);
 
-useEffect(() => {
-  if (!msg) return;
-  const t = setTimeout(() => setMsg(""), 3000);
-  return () => clearTimeout(t);
-}, [msg]);
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(""), 3000);
+    return () => clearTimeout(t);
+  }, [msg]);
 
-useEffect(() => {
-  if (!applyMessage) return;
-  const t = setTimeout(() => setApplyMessage(""), 3000);
-  return () => clearTimeout(t);
-}, [applyMessage]);
+  useEffect(() => {
+    if (!applyMessage) return;
+    const t = setTimeout(() => setApplyMessage(""), 3000);
+    return () => clearTimeout(t);
+  }, [applyMessage]);
 
   const load = async () => {
     try {
@@ -308,125 +298,123 @@ useEffect(() => {
     load();
   }, []);
 
-const apply = async () => {
-  
-const days = calcLeaveDays(form.startDate, form.endDate);
+  const apply = async () => {
+    const days = calcLeaveDays(form.startDate, form.endDate);
 
-// 🚫 single-day leave check
-if (days === 1) {
-  const dateCheck = checkHolidayOrWeekOff(
-    form.startDate,
-    holidaysList,
-    weekOff
-  );
+    // 🚫 single-day leave check
+    if (days === 1) {
+      const dateCheck = checkHolidayOrWeekOff(
+        form.startDate,
+        holidaysList,
+        weekOff,
+      );
 
-  if (dateCheck.blocked) {
-    const message =
-      dateCheck.reason === "HOLIDAY"
-        ? "Selected date is a Holiday. Leave cannot be applied."
-        : "Selected date is a Week-Off. Leave cannot be applied.";
+      if (dateCheck.blocked) {
+        const message =
+          dateCheck.reason === "HOLIDAY"
+            ? "Selected date is a Holiday. Leave cannot be applied."
+            : "Selected date is a Week-Off. Leave cannot be applied.";
 
-    setApplyMessage(message);
-    setMsg(message);
-    setMsgType("error"); // 🔴 red
-    return;
-  }
-}
-  // 🔥 RULE 1: WFH → reason compulsory (any duration)
-  if (form.type === "WFH" && !form.reason.trim()) {
-    setApplyMessage("Reason is mandatory for Work From Home");
-    setMsg("Reason is mandatory for Work From Home");
-    setMsgType("error");
-    return;
-  }
-  // 🔥 RULE: 3+ days → reason compulsory
-  if (days >= 3 && !form.reason.trim()) {
-    setApplyMessage("Reason is mandatory for leave of 3 days or more");
-    setMsg("Reason is mandatory for leave of 3 days or more");
-    setMsgType("error");
-    return;
-  }
-
-   if (form.type === "COMP_OFF" && (user?.compOffBalance ?? 0) <= 0) {
-   setMsg("You don't have Comp-Off balance");
-   setMsgType("error");
-   setApplyMessage("Not enough Comp-Off balance");
-   return;
-  }
-  setApplyLoading(true); 
-   // ⬅ button text Applying...
-  try {
-    const res = await api.post("/leaves", {
-      ...form,
-      responsiblePerson: form.responsiblePerson || null,
-    });
-    
-    // ✅ UPDATE USER BALANCE WITHOUT REFRESH
-    if (res.data.updatedUser) {
-      useAuthStore.getState().setUser({
-        ...user,
-        ...res.data.updatedUser,
-      });
+        setApplyMessage(message);
+        setMsg(message);
+        setMsgType("error"); // 🔴 red
+        return;
+      }
     }
-    setApplied(true);
-    setApplyMessage("Your leave is successfully sent.");
-    setMsg("Your leave is successfully sent.");
-    setMsgType("success");
+    // 🔥 RULE 1: WFH → reason compulsory (any duration)
+    if (form.type === "WFH" && !form.reason.trim()) {
+      setApplyMessage("Reason is mandatory for Work From Home");
+      setMsg("Reason is mandatory for Work From Home");
+      setMsgType("error");
+      return;
+    }
+    // 🔥 RULE: 3+ days → reason compulsory
+    if (days >= 3 && !form.reason.trim()) {
+      setApplyMessage("Reason is mandatory for leave of 3 days or more");
+      setMsg("Reason is mandatory for leave of 3 days or more");
+      setMsgType("error");
+      return;
+    }
 
-    setTimeout(() => {
-      setApplied(false);
-      setApplyMessage("");
-    }, 2000);
+    if (form.type === "COMP_OFF" && (user?.compOffBalance ?? 0) <= 0) {
+      setMsg("You don't have Comp-Off balance");
+      setMsgType("error");
+      setApplyMessage("Not enough Comp-Off balance");
+      return;
+    }
+    setApplyLoading(true);
+    // ⬅ button text Applying...
+    try {
+      const res = await api.post("/leaves", {
+        ...form,
+        responsiblePerson: form.responsiblePerson || null,
+      });
 
-    setForm({
-      type: "CASUAL",
-      startDate: "",
-      endDate: "",
-      reason: "",
-      responsiblePerson: "",
-    });
+      // ✅ UPDATE USER BALANCE WITHOUT REFRESH
+      if (res.data.updatedUser) {
+        useAuthStore.getState().setUser({
+          ...user,
+          ...res.data.updatedUser,
+        });
+      }
+      setApplied(true);
+      setApplyMessage("Your leave is successfully sent.");
+      setMsg("Your leave is successfully sent.");
+      setMsgType("success");
 
-    load();
-  } catch (err) {
-    const errorMsg = err.response?.data?.message || "Failed to apply leave";
-    setApplyMessage(errorMsg);
-    setMsg(errorMsg);
-    setMsgType("error");
-  } finally {
-    setApplyLoading(false);  // ⬅ important
-  }
-};
+      setTimeout(() => {
+        setApplied(false);
+        setApplyMessage("");
+      }, 2000);
 
-const updateStatus = async (id, status) => {
-  try {
-    // ✅ OPTIMISTIC UPDATE (instant UI change)
-    setLeaves((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? { 
-              ...l, 
-              status: status === "APPROVED" ? "APPROVED" : "REJECTED" 
-            }
-          : l
-      )
-    );
+      setForm({
+        type: "CASUAL",
+        startDate: "",
+        endDate: "",
+        reason: "",
+        responsiblePerson: "",
+      });
 
-    // Then call backend
-    await api.patch(`/leaves/${id}/approve`, { action: status });
-    
-    setMsg(`Leave ${status.toLowerCase()}`);
-    setMsgType("success");
-    
-    // ✅ FINAL REFRESH (to get any backend-calculated fields)
-    load();
-    
-  } catch (err) {
-    // ❌ Revert on error
-    setMsg(err?.response?.data?.message || "Action failed");
-    setMsgType("error");
-    load(); // reload original data
-  }
-};
+      load();
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || "Failed to apply leave";
+      setApplyMessage(errorMsg);
+      setMsg(errorMsg);
+      setMsgType("error");
+    } finally {
+      setApplyLoading(false); // ⬅ important
+    }
+  };
+
+  const updateStatus = async (id, status) => {
+    try {
+      // ✅ OPTIMISTIC UPDATE (instant UI change)
+      setLeaves((prev) =>
+        prev.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                status: status === "APPROVED" ? "APPROVED" : "REJECTED",
+              }
+            : l,
+        ),
+      );
+
+      // Then call backend
+      await api.patch(`/leaves/${id}/approve`, { action: status });
+
+      setMsg(`Leave ${status.toLowerCase()}`);
+      setMsgType("success");
+
+      // ✅ FINAL REFRESH (to get any backend-calculated fields)
+      load();
+    } catch (err) {
+      // ❌ Revert on error
+      setMsg(err?.response?.data?.message || "Action failed");
+      setMsgType("error");
+      load(); // reload original data
+    }
+  };
 
   return (
     <div className="space-y-10">
@@ -446,12 +434,36 @@ const updateStatus = async (id, status) => {
 
       {!isAdmin && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard icon={<FiClock className="text-green-500" />} title="Approved Leave Days"  value={approvedLeaveDays} />
-          <StatCard icon={<FiClock className="text-blue-500" />} title="Approved WFH Days" value={approvedWFHDays}/>
-          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved" value={approvedHalfDay} />
-          <StatCard icon={<FiClock className="text-teal-500" />} title="Comp-Off Balance" value={user?.compOffBalance ?? 0}/>
-          <StatCard icon={<FiCalendar className="text-green-600" />} title="Available Leave Balance"  value={user?.leaveBalance ?? 0}/>
-          <StatCard icon={<FiCalendar className="text-red-500" />} title="Remaining Leaves" value={`${remainingLeaves} / ${yearlyQuota}`}/>
+          <StatCard
+            icon={<FiClock className="text-green-500" />}
+            title="Approved Leave Days"
+            value={approvedLeaveDays}
+          />
+          <StatCard
+            icon={<FiClock className="text-blue-500" />}
+            title="Approved WFH Days"
+            value={approvedWFHDays}
+          />
+          <StatCard
+            icon={<FiClock className="text-green-500" />}
+            title="Half Day Approved"
+            value={approvedHalfDay}
+          />
+          <StatCard
+            icon={<FiClock className="text-teal-500" />}
+            title="Comp-Off Balance"
+            value={user?.compOffBalance ?? 0}
+          />
+          <StatCard
+            icon={<FiCalendar className="text-green-600" />}
+            title="Available Leave Balance"
+            value={user?.leaveBalance ?? 0}
+          />
+          <StatCard
+            icon={<FiCalendar className="text-red-500" />}
+            title="Remaining Leaves"
+            value={`${remainingLeaves} / ${yearlyQuota}`}
+          />
         </div>
       )}
 
@@ -491,9 +503,7 @@ const updateStatus = async (id, status) => {
                   <select
                     className="p-3 rounded-xl border dark:bg-gray-900 shadow"
                     value={form.type}
-                    onChange={(e) =>
-                      setForm({ ...form, type: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
                   >
                     <option value="CASUAL">Casual Leave</option>
                     <option value="SICK">Sick Leave</option>
@@ -518,9 +528,7 @@ const updateStatus = async (id, status) => {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="font-medium text-gray-600">
-                    End Date
-                  </label>
+                  <label className="font-medium text-gray-600">End Date</label>
                   <input
                     type="date"
                     className="p-3 rounded-xl border dark:bg-gray-900 shadow"
@@ -547,14 +555,12 @@ const updateStatus = async (id, status) => {
                     form.type === "WFH"
                       ? "Reason is required for Work From Home"
                       : calcLeaveDays(form.startDate, form.endDate) >= 3
-                      ? "Reason is required beyond three days leave"
-                      : "Enter reason (optional)"
+                        ? "Reason is required beyond three days leave"
+                        : "Enter reason (optional)"
                   }
                   className="p-3 w-full rounded-xl border dark:bg-gray-900 shadow"
                   value={form.reason}
-                  onChange={(e) =>
-                    setForm({ ...form, reason: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, reason: e.target.value })}
                 />
               </div>
 
@@ -670,7 +676,7 @@ const updateStatus = async (id, status) => {
                           !cancelForm.witnessId
                         ) {
                           setMsg(
-                            "Date, times and witness are required for Cancel Leave"
+                            "Date, times and witness are required for Cancel Leave",
                           );
                           setMsgType("error");
                           return;
@@ -684,9 +690,7 @@ const updateStatus = async (id, status) => {
                             cancelForm.reason ||
                             "Missed to check-in, present in office",
                         });
-                        setMsg(
-                          "Cancel leave request submitted for approval"
-                        );
+                        setMsg("Cancel leave request submitted for approval");
                         setMsgType("success");
                         setCancelForm({
                           date: "",
@@ -707,17 +711,21 @@ const updateStatus = async (id, status) => {
               }
               disabled={applyLoading || applied}
               className={`px-6 py-3 rounded-xl font-semibold shadow-lg text-white
-    ${applied && formMode === "LEAVE" ? "bg-green-600 cursor-default" :
-     applyLoading ? "bg-indigo-400 cursor-wait" :
-     "bg-indigo-600 hover:bg-indigo-700"}
+    ${
+      applied && formMode === "LEAVE"
+        ? "bg-green-600 cursor-default"
+        : applyLoading
+          ? "bg-indigo-400 cursor-wait"
+          : "bg-indigo-600 hover:bg-indigo-700"
+    }
   `}
             >
               {formMode === "LEAVE"
                 ? applied
                   ? "Applied ✔"
                   : applyLoading
-                  ? "Applying..."
-                  : "Apply"
+                    ? "Applying..."
+                    : "Apply"
                 : "Submit Cancel Request"}
             </button>
 
@@ -728,7 +736,7 @@ const updateStatus = async (id, status) => {
                   applyMessage.includes("Failed") ||
                   applyMessage.includes("Error") ||
                   applyMessage.includes(
-                    "Half day leave must be for a single date"
+                    "Half day leave must be for a single date",
                   ) ||
                   applyMessage.includes("Not enough Comp-Off balance") ||
                   applyMessage.includes("Holiday") ||
@@ -761,18 +769,18 @@ const updateStatus = async (id, status) => {
           </p>
         ) : (
           <div className="space-y-4 max-h-[450px] overflow-y-auto pr-2">
-     {paginatedLeaves.map((l) => (
-  <LeaveItem
-    key={l.id}
-    l={l}
-    isAdmin={isAdmin}
-    updateStatus={updateStatus}
-    onDelete={(id) => {
-      setDeleteId(id);
-      setShowDelete(true);
-    }}
-  />
-))}
+            {paginatedLeaves.map((l) => (
+              <LeaveItem
+                key={l.id}
+                l={l}
+                isAdmin={isAdmin}
+                updateStatus={updateStatus}
+                onDelete={(id) => {
+                  setDeleteId(id);
+                  setShowDelete(true);
+                }}
+              />
+            ))}
           </div>
         )}
         {totalPages > 1 && (
@@ -796,19 +804,18 @@ const updateStatus = async (id, status) => {
         )}
       </GlassCard>
       {showDelete && (
-  <ConfirmDelPopup
-    title="Delete Leave?"
-    message="Are you sure you want to delete this leave request? This action cannot be undone."
-    onConfirm={confirmDeleteLeave}
-    onCancel={() => {
-      setShowDelete(false);
-      setDeleteId(null);
-    }}
-  />
-)}
+        <ConfirmDelPopup
+          title="Delete Leave?"
+          message="Are you sure you want to delete this leave request? This action cannot be undone."
+          onConfirm={confirmDeleteLeave}
+          onCancel={() => {
+            setShowDelete(false);
+            setDeleteId(null);
+          }}
+        />
+      )}
 
       {/* Today‑leave modal removed as per latest requirement */}
-
     </div>
   );
 }
@@ -833,9 +840,9 @@ function LeaveItem({ l, isAdmin, onDelete }) {
         <div className="text-lg font-semibold">
           {l.type === "WFH" ? (
             <span className="text-blue-600">Work From Home</span>
-          ) :l.type === "COMP_OFF" ? (
+          ) : l.type === "COMP_OFF" ? (
             <span className="text-yellow-400">Comp Off</span>
-          ) :l.type === "PAID" ? (
+          ) : l.type === "PAID" ? (
             <span className="text-green-600">Paid Leave</span>
           ) : l.type === "SICK" ? (
             <span className="text-yellow-600">Sick Leave</span>
@@ -850,11 +857,11 @@ function LeaveItem({ l, isAdmin, onDelete }) {
           )}
         </div>
 
-<div className="text-sm text-gray-500">
-  {l.startDate?.slice(0, 10) === l.endDate?.slice(0, 10)
-    ? l.startDate?.slice(0, 10)
-    : `${l.startDate?.slice(0, 10)} → ${l.endDate?.slice(0, 10)}`}
-</div>
+        <div className="text-sm text-gray-500">
+          {l.startDate?.slice(0, 10) === l.endDate?.slice(0, 10)
+            ? l.startDate?.slice(0, 10)
+            : `${l.startDate?.slice(0, 10)} → ${l.endDate?.slice(0, 10)}`}
+        </div>
 
         <div className="text-xs text-gray-400">{getDisplayDays()}</div>
 
@@ -865,14 +872,13 @@ function LeaveItem({ l, isAdmin, onDelete }) {
           </div>
         )}
 
-{/* Responsible person (if assigned) */}
-{l.responsiblePerson && (
-  <div className="text-xs text-gray-500 mt-1">
-    <b>Responsible:</b>{" "}
-    {l.responsiblePerson.firstName}{" "}
-    {l.responsiblePerson.lastName || ""}
-  </div>
-)}
+        {/* Responsible person (if assigned) */}
+        {l.responsiblePerson && (
+          <div className="text-xs text-gray-500 mt-1">
+            <b>Responsible:</b> {l.responsiblePerson.firstName}{" "}
+            {l.responsiblePerson.lastName || ""}
+          </div>
+        )}
 
         {/* Employee sees why admin rejected */}
         {l.status === "REJECTED" && l.rejectReason && (
@@ -881,20 +887,21 @@ function LeaveItem({ l, isAdmin, onDelete }) {
           </div>
         )}
       </div>
-{!isAdmin && l.status === "PENDING" && (
-  <button
-    onClick={() => onDelete(l.id)}
-    className="absolute top-4 right-4 text-red-500 hover:text-red-700 
+      {!isAdmin && l.status === "PENDING" && (
+        <button
+          onClick={() => onDelete(l.id)}
+          className="absolute top-4 right-4 text-red-500 hover:text-red-700 
            font-bold text-lg bg-white dark:bg-gray-900 
            rounded-full w-7 h-7 flex items-center justify-center shadow"
-    title="Delete leave"
-  >
-    ✕
-  </button>
-)}
-     <div className="flex items-center gap-3">
+          title="Delete leave"
+        >
+          ✕
+        </button>
+      )}
+      <div className="flex items-center gap-3">
         <span
-          className={`px-4 py-1 rounded-full text-white text-sm font-medium ${ l.status === "APPROVED" ? "bg-green-600" : l.status === "REJECTED"  ? "bg-red-600"  : "bg-yellow-500"  }`} >
+          className={`px-4 py-1 rounded-full text-white text-sm font-medium ${l.status === "APPROVED" ? "bg-green-600" : l.status === "REJECTED" ? "bg-red-600" : "bg-yellow-500"}`}
+        >
           {l.status}
         </span>
       </div>
