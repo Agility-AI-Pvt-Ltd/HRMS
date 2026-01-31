@@ -410,6 +410,14 @@ export const listLeaves = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
+    // Sort: PENDING first, then rest by date (newest first)
+const statusOrder = { PENDING: 0, APPROVED: 1, REJECTED: 2 };
+leaves.sort((a, b) => {
+  const diff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+  if (diff !== 0) return diff;
+  return new Date(b.createdAt) - new Date(a.createdAt);
+});
+
     return res.json({ success: true, leaves });
   } catch (error) {
     console.error("listLeaves ERROR:", error);
