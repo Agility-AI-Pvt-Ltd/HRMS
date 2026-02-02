@@ -22,6 +22,7 @@ import weeklyOffRoutes from "./routes/weeklyOffRoutes.js";
 import compOffRoutes from "./routes/compOffRoutes.js";   
 import holidayRoutes from "./routes/holidayRoutes.js"; 
 import attendanceCorrectionRoutes from "./routes/attendanceCorrectionRoutes.js"; 
+import freelanceFacultyRoutes from "./routes/facultyManagerRoute.js"
 
 const app = express();
 
@@ -98,6 +99,8 @@ app.use("/api/weekly-off", weeklyOffRoutes);
 app.use("/api/comp-off", compOffRoutes); 
 app.use("/api/holidays", holidayRoutes);
 app.use( "/api/attendance-corrections", attendanceCorrectionRoutes);
+app.use("/api/freelance",freelanceFacultyRoutes);
+
 
 /* ============================================================
    HEALTH CHECK
