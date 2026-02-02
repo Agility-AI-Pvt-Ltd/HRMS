@@ -47,7 +47,13 @@ export default function EmployeeReimbursement() {
   const [loading, setLoading] = useState(false);
   /* SHOW MESSAGE 2 SEC */
   const [toastType, setToastType] = useState("success");
+  const [toastType, setToastType] = useState("success");
 
+  const showMsg = (msg, type = "success") => {
+    setToastType(type);
+    setMessage(msg);
+    setTimeout(() => setMessage(""), 2000);
+  };
   const showMsg = (msg, type = "success") => {
     setToastType(type);
     setMessage(msg);
@@ -66,7 +72,8 @@ const loadMy = async () => {
 
   useEffect(() => {
     loadMy();
-  }, []);
+    console.log("List of bills:", list);
+  }, [list]);
 
   /* ======================================================
          UPLOAD BILL FILES
@@ -105,6 +112,13 @@ const loadMy = async () => {
     loadMy();
     showMsg("Request deleted", "success");
   };
+  const confirmDelete = async () => {
+    await api.delete(`/reimbursement/me/${selectedId}`);
+    setShowDelete(false);
+    setSelectedId(null);
+    loadMy();
+    showMsg("Request deleted", "success");
+  };
 
   /* ======================================================
          SUBMIT FORM
@@ -112,8 +126,11 @@ const loadMy = async () => {
   const submitForm = async () => {
     if (!title.trim()) return showMsg("Title is required", "error");
     if (bills.length === 0) return showMsg("Upload at least 1 bill", "error");
+    if (!title.trim()) return showMsg("Title is required", "error");
+    if (bills.length === 0) return showMsg("Upload at least 1 bill", "error");
 
     const invalidBill = bills.find((b) => !b.fileUrl || !b.amount);
+    if (invalidBill) return showMsg("Each bill must have amount", "error");
     if (invalidBill) return showMsg("Each bill must have amount", "error");
 
     try {
@@ -128,8 +145,9 @@ const loadMy = async () => {
       setTitle("");
       setDescription("");
       setBills([]);
+
+      loadMy();
       showMsg("Reimbursement submitted!", "success");
-      await loadMy();
     } finally {
       setSubmitting(false);
     }
@@ -138,9 +156,13 @@ const loadMy = async () => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4">
       {message && <Toast msg={message} type={toastType} />}
+      {message && <Toast msg={message} type={toastType} />}
 
       {/* FORM CARD */}
       <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border dark:border-gray-700">
+        <h2 className="text-2xl font-bold mb-5 dark:text-white">
+          Submit Reimbursement
+        </h2>
         <h2 className="text-2xl font-bold mb-5 dark:text-white">
           Submit Reimbursement
         </h2>
@@ -281,7 +303,31 @@ const loadMy = async () => {
                     ✕
                   </button>
                 )}
+          <div className="space-y-4 max-h-[450px] overflow-y-scroll pr-2 custom-scroll">
+            {list.map((r) => (
+              <div
+                key={r.id}
+                className="relative p-4 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:border-gray-700"
+              >
+                {/* DELETE BUTTON FOR PENDING & REJECTED (EMPLOYEE ONLY) */}
+                {["PENDING", "REJECTED"].includes(r.status) && (
+                  <button
+                    onClick={() => {
+                      setSelectedId(r.id);
+                      setShowDelete(true);
+                    }}
+                    className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
 
+                <div className="flex justify-between pr-6">
+                  <h3 className="font-bold dark:text-white">{r.title}</h3>
+                  <span className={`font-bold ${statusColor[r.status]}`}>
+                    {r.status}
+                  </span>
+                </div>
                 <div className="flex justify-between pr-6">
                   <h3 className="font-bold dark:text-white">{r.title}</h3>
                   <span className={`font-bold ${statusColor[r.status]}`}>
@@ -292,7 +338,22 @@ const loadMy = async () => {
                 <p className="text-sm mt-1 dark:text-gray-300">
                   Total: ₹{r.totalAmount}
                 </p>
+                <p className="text-sm mt-1 dark:text-gray-300">
+                  Total: ₹{r.totalAmount}
+                </p>
 
+                <div className="mt-2 space-y-1">
+                  {r.bills.map((b) => (
+                    <a
+                      key={b.id}
+                      href={b.fileUrl}
+                      target="_blank"
+                      className="text-blue-600 underline text-sm block"
+                    >
+                      Bill • ₹{b.amount} — {b.note}
+                    </a>
+                  ))}
+                </div>
                 <div className="mt-2 space-y-1">
                   {r.bills.map((b) => (
                     <a
@@ -312,7 +373,19 @@ const loadMy = async () => {
                     <b>Rejected Reason:</b> {r.rejectReason}
                   </p>
                 )}
+                {/* ⭐ SHOW REJECTED REASON TO EMPLOYEE */}
+                {r.status === "REJECTED" && r.rejectReason && (
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-2">
+                    <b>Rejected Reason:</b> {r.rejectReason}
+                  </p>
+                )}
 
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  {new Date(r.createdAt).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                   {new Date(r.createdAt).toLocaleString()}
                 </p>
@@ -331,9 +404,21 @@ const loadMy = async () => {
             }}
           />
         )}
+          <ConfirmDelPopup
+            title="Delete Reimbursement?"
+            message="Are you sure you want to delete this reimbursement request? This action cannot be undone."
+            onConfirm={confirmDelete}
+            onCancel={() => {
+              setShowDelete(false);
+              setSelectedId(null);
+            }}
+          />
+        )}
       </div>
 
       {/* Scrollbar */}
+      <style>
+        {`
       <style>
         {`
 .custom-scroll {
@@ -362,6 +447,7 @@ const loadMy = async () => {
   scrollbar-color: #6b7280 #1f2937;
 }
 `}
+      </style>
       </style>
     </div>
   );

@@ -33,6 +33,10 @@ async function startServer() {
         "⚠️ Database connection failed, but server is running:",
         dbErr.message,
       );
+      console.error(
+        "⚠️ Database connection failed, but server is running:",
+        dbErr.message,
+      );
       // Server continues running even if DB connection fails initially
     }
   } catch (err) {
