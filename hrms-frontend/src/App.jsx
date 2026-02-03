@@ -23,6 +23,9 @@ import useAuthStore from "./stores/authstore";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import LayoutPremium from "./components/LayoutPremium";
+import FreelanceFacultyDashboard from "./pages/FreelanceFacultyDashboard.jsx";
+import FreelanceFacultyManagerView from "./pages/FreelanceFacultyManagerView.jsx";
+
 
 export default function App() {
   const loading = useAuthStore((s) => s.loading);
@@ -71,6 +74,27 @@ export default function App() {
             <ProtectedRoute allowedRoles={["ADMIN"]}>
               <LayoutPremium>
                 <Employees />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+        {/* ADMIN ONLY ROUTES */}
+        <Route
+          path="/freelanceManagers"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <FreelanceFacultyDashboard/>
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/freelanceManagers/:managerId"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <FreelanceFacultyManagerView />
               </LayoutPremium>
             </ProtectedRoute>
           }

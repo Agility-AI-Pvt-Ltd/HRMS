@@ -7,7 +7,7 @@ const VALID_DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 export const createFreelanceFacultyManager=async (req,res)=>{
     try{
         const { employeeId } = req.body;
-
+        console.log(employeeId);
         if (!employeeId) {
           return res.status(400).json({
             success: false,
@@ -81,7 +81,7 @@ export const createFreelanceFacultyManager=async (req,res)=>{
       });
 
     }catch(error){
-        console.log("Something went wrong while creating faculty manager:",err);
+        console.log("Something went wrong while creating faculty manager:",error);
         return res.status(500).json({
           success:false,
           message:"Something went wrong while creating faculty manager!"
@@ -269,8 +269,6 @@ export const listFreelanceFaculties=async (req,res)=>{
       })
     }
 
-    console.log("MangerId Found!====");
-
     const faculties=await prisma.freelanceFaculty.findMany({
       where:{managerId:managerId},
       include:{
@@ -305,7 +303,7 @@ export const listFreelanceFaculties=async (req,res)=>{
       }
     });
 
-    console.log(faculties);
+
 
     const facultyStats=faculties.map((faculty)=>{
       const totalClasses=faculty.dayEntries.reduce((sum,entry)=>sum+entry.classesCount,0) || 0;
@@ -338,3 +336,55 @@ export const listFreelanceFaculties=async (req,res)=>{
     })
   }
 }
+
+// ==============make freelance faculty inactive==================================
+export const updateFreelanceFacultyStatus=async (req,res)=>{
+  try{
+    const {facultyId,status} = req.body;
+
+    console.log(facultyId,status);
+    if(!facultyId || !status){
+      return res.status(400).json({
+        success:false,
+        message:"FacultyId and status are required."
+      });
+    }
+
+    const allowedStatuses=["ACTIVE","INACTIVE"];
+    if(!allowedStatuses.includes(status)){
+      return res.status(400).json({
+        success:false,
+        message:"Invalid status provided."
+      })
+    }
+
+    const existingFaculty=await prisma.freelanceFaculty.findUnique({
+      where:{id:facultyId}
+    });
+
+    if(!existingFaculty){
+      return res.status(400).json({
+        success:false,
+        message:"Faculty not found!"
+      });
+    }
+
+    const updateFacultyStatus=await prisma.freelanceFaculty.update({
+      where:{id:facultyId},
+      data:{status},
+    })
+
+    return res.status(200).json({
+      success:true,
+      message:"Faculty status updated successfully."
+    })
+  }catch(err){
+    console.log("removeFreelanceFaculty error:",err);
+    return res.status(500).json({
+      message:"Something went wrong while removing faculty!",
+      error:err
+    })
+  }
+}
+
+
