@@ -7,6 +7,9 @@ import {
 } from "react-icons/fi";
 import useAuthStore from "../stores/authstore";
 
+import { IoMdPeople } from "react-icons/io";
+
+
 export default function SidebarPremium({ isOpen, toggleSidebar }) {
   const [openMenu, setOpenMenu] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -61,6 +64,7 @@ const menus = [
   { title: "Attendance", icon: <FiClock />, path: "/attendance" },
   { title: "Employees", icon: <FiUsers />, path: "/employees", adminOnly: true },
   { title: "Departments", icon: <FiGrid />, path: "/departments", adminOnly: true },
+  { title: "Freelance Managers", icon: <IoMdPeople />, path: "/freelanceManagers", adminOnly: true },
   { title: "Leaves/WFH", icon: <FiBookOpen />, path: "/leaves" },
   { title: "Reimbursement", icon: <FiFileText />, path: "/reimbursements" },
   { title: "Holidays", icon: <FiClock />, path: "/holidays", adminOnly: true },
