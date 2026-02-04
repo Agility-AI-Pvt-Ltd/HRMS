@@ -144,7 +144,7 @@ export async function markAutoLeavesForDate(dateISO) {
 }
 
 cron.schedule(
-  "5 19 * * *",
+  "21 17 * * *",
   async () => {
     console.log("[AUTO-LEAVE] Cron triggered at", new Date().toISOString());
     const now = new Date();

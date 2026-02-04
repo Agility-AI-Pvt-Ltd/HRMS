@@ -96,7 +96,7 @@ export default function FreelanceFacultyDashboard() {
         if(data.success){
           const employees=data.users;
           const idsToRemove = new Set(managers?.map(obj => obj.id));
-          setFilteredEmployees(employees?.filter(e=>(e.role !== "ADMIN" && !idsToRemove?.has(e.id))));
+          setFilteredEmployees(employees?.filter(e=>(e.role !== "ADMIN" && e.role !== "AGILITY_EMPLOYEE" && !idsToRemove?.has(e.id))));
         }
       }catch(err){
         console.log(err);

@@ -64,6 +64,7 @@ export const assignFreelanceFacultyToManager = async (payload) => {
   }
 };
 
+// ============update faculty status=========================================
 export const updateFacultyStatus=async ({facultyId,status})=>{
   try{
     const res=await api.post("/freelance/updateStatus",{facultyId,status});
@@ -75,6 +76,30 @@ export const updateFacultyStatus=async ({facultyId,status})=>{
     console.log("Failed updateFacultyStatus:",error);
     return {
       error:error?.message ?? "Status update failed."
+    }
+  }
+}
+
+// ================change faculty manager====================================
+export const changeFacultyManager=async ({facultyId,newManagerId})=>{
+  try{
+    const res=await api.post("/freelance/updateManager",{facultyId,newManagerId});
+    const data=res?.data;
+    if(data.success){
+      return {
+        message:"Manager changed.",
+        error:null
+      }
+    }
+    return {
+      message: data?.message ?? "Failed to change manager.",
+      error: null,
+    };
+  }catch(error){
+    console.log(error?.message ?? "Something went wrong while updating manager.");
+    return {
+      message: null,
+      error:error
     }
   }
 }

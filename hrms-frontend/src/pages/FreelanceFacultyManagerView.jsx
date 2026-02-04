@@ -6,6 +6,8 @@ import {
   getFacultiesByManagerId,
   assignFreelanceFacultyToManager,
   updateFacultyStatus,
+  changeFacultyManager,
+  getFreelanceManagers,
 } from "../data/freelanceFaculty";
 
 const statusBadge = (status) => {
@@ -25,6 +27,7 @@ const statusBadge = (status) => {
 
 export default function FreelanceFacultyManagerView() {
   const { managerId } = useParams();
+  const [managers,setManagers]=useState([]);
   const [faculties, setFaculties] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -37,6 +40,13 @@ export default function FreelanceFacultyManagerView() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
 
+  const DUMMY_MANAGERS = [
+    { id: "MGR-1001", name: "Aarav Mehta", email: "aarav.mehta@dummy.com" },
+    { id: "MGR-1002", name: "Neha Sharma", email: "neha.sharma@dummy.com" },
+    { id: "MGR-1003", name: "Kabir Singh", email: "kabir.singh@dummy.com" },
+    { id: "MGR-1004", name: "Isha Verma", email: "isha.verma@dummy.com" },
+  ];
+
   // Assign freelance faculty modal state
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignName, setAssignName] = useState("");
@@ -44,6 +54,13 @@ export default function FreelanceFacultyManagerView() {
   const [assignDays, setAssignDays] = useState([]);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState(null);
+
+  // Change manager modal state
+  const [showChangeManagerModal, setShowChangeManagerModal] = useState(false);
+  const [changeTargetFaculty, setChangeTargetFaculty] = useState(null);
+  const [selectedManagerId, setSelectedManagerId] = useState("");
+  const [changeLoading, setChangeLoading] = useState(false);
+  const [changeError, setChangeError] = useState(null);
 
   const SUBJECT_OPTIONS = [
     "Maths",
@@ -56,6 +73,19 @@ export default function FreelanceFacultyManagerView() {
   ];
 
   const DAY_OPTIONS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+  const loadManagers=useCallback(async ()=>{
+    setLoading(true);
+    setError(null);
+    const {managers:managers,error:error}=await getFreelanceManagers();
+    setManagers(managers ?? []);
+    setError(error ?? null);
+    setLoading(false);
+   },[]);
+
+   useEffect(()=>{
+    loadManagers();
+   },[loadManagers])
 
   const loadFaculties=useCallback(async ()=>{
     if(!managerId) return;
@@ -155,6 +185,26 @@ export default function FreelanceFacultyManagerView() {
     setShowAssignModal(false);
   };
 
+  const openChangeManagerModal = (faculty) => {
+    setChangeTargetFaculty(faculty);
+    setChangeError(null);
+
+    const currentManager = String(faculty?.managerId ?? managerId ?? "");
+    const candidates = managers?.filter(
+      (m) => String(m.id) !== managerId
+    );
+    setSelectedManagerId(candidates[0]?.id ?? "");
+    setShowChangeManagerModal(true);
+  };
+
+  const closeChangeManagerModal = () => {
+    if (changeLoading) return;
+    setShowChangeManagerModal(false);
+    setChangeTargetFaculty(null);
+    setSelectedManagerId("");
+    setChangeError(null);
+  };
+
   const toggleSubject = (subject) => {
     setAssignSubjects((prev) =>
       prev.includes(subject)
@@ -210,6 +260,33 @@ export default function FreelanceFacultyManagerView() {
       await loadFaculties();
     }
     setLoading(false);
+  }
+
+  const handleManagerChange=async ({facultyId,newManagerId})=>{
+    if (!facultyId || !newManagerId) return;
+
+    setChangeLoading(true);
+    setChangeError(null);
+
+    const { error: apiError } = await changeFacultyManager({
+      facultyId,
+      newManagerId,
+    });
+
+    if (apiError) {
+      setChangeError(
+        apiError?.response?.data?.message ??
+          apiError?.message ??
+          "Failed to change manager."
+      );
+      setChangeLoading(false);
+      return;
+    }
+
+    await loadFaculties();
+    setChangeLoading(false);
+    setShowChangeManagerModal(false);
+    setChangeTargetFaculty(null);
   }
 
   return (
@@ -372,6 +449,103 @@ export default function FreelanceFacultyManagerView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showChangeManagerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Change Manager
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Select a new manager for{" "}
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                {changeTargetFaculty?.name ?? "this faculty"}
+              </span>
+              .
+            </p>
+
+            <div className="space-y-2">
+              {managers?.filter(
+                (m) => String(m.id) !== managerId
+              ).length === 0 ? (
+                <div className="rounded-xl border p-4 text-sm text-gray-600 dark:border-gray-800 dark:text-gray-400">
+                  No other managers available.
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-auto rounded-xl border p-2 dark:border-gray-800">
+                  {managers.filter(
+                    (m) => String(m.id) !== managerId
+                  ).map((m) => {
+                    const selected = String(selectedManagerId) === String(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedManagerId(m.id)}
+                        className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${
+                          selected
+                            ? "bg-indigo-50 text-indigo-900 dark:bg-indigo-900/30 dark:text-indigo-100"
+                            : "hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                        }`}
+                      >
+                        <div>
+                          <div className="font-semibold">{m.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {m.firstName}{" "}{m.lastName} • {m.email}
+                          </div>
+                        </div>
+                        <div
+                          className={`mt-1 h-4 w-4 rounded-full ring-2 ${
+                            selected
+                              ? "bg-indigo-600 ring-indigo-600"
+                              : "bg-white ring-gray-300 dark:bg-gray-900 dark:ring-gray-700"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {changeError && (
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400">
+                {changeError}
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeChangeManagerModal}
+                disabled={changeLoading}
+                className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  changeLoading ||
+                  !changeTargetFaculty?.id ||
+                  !selectedManagerId ||
+                  String(selectedManagerId) ===
+                    String(changeTargetFaculty?.managerId ?? managerId ?? "")
+                }
+                onClick={() =>
+                  handleManagerChange({
+                    facultyId: changeTargetFaculty?.id,
+                    newManagerId: selectedManagerId,
+                  })
+                }
+                className="inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {changeLoading ? "Changing..." : "Change"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -683,6 +857,17 @@ export default function FreelanceFacultyManagerView() {
                   Deactivate
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  const target = faculties.find((f) => f.id === openMenuId);
+                  if (target) openChangeManagerModal(target);
+                  setOpenMenuId(null);
+                }}
+                className="block w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Change Manager
+              </button>
             </div>
           </div>,
           document.body
