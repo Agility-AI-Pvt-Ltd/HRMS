@@ -224,6 +224,7 @@ export const assignFreelanceFaculty=async (req,res)=>{
     const faculty=await prisma.freelanceFaculty.create({
       data:{
         managerId,
+        freelanceFacultyManagerId:managerRecord.id,
         name:trimmedName,
         subjects:subjects.map(s=>s.trim()),
         preferredDaysOfWeek:[...new Set(preferredDaysOfWeek)],
@@ -383,6 +384,93 @@ export const updateFreelanceFacultyStatus=async (req,res)=>{
     return res.status(500).json({
       message:"Something went wrong while removing faculty!",
       error:err
+    })
+  }
+}
+
+// ================change faculty manager====================================
+export const changeFacultyManager=async (req,res)=>{
+  try{
+    const {facultyId,newManagerId}=req.body;
+
+    if (!facultyId || !newManagerId) {
+      return res.status(400).json({
+        success:false,
+        message:"facultyId and newManagerId are required."
+      });
+    }
+
+    const existingFaculty=await prisma.freelanceFaculty.findUnique({
+      where:{id:facultyId},
+      select:{
+        id:true,
+        managerId:true,
+        freelanceFacultyManagerId:true,
+      }      
+    })
+
+    if(!existingFaculty){
+      return res.status(404).json({
+        success:false,
+        message:"No faculty found with this ID."
+      })
+    }
+
+    if(existingFaculty.managerId === newManagerId){
+      return res.status(400).json({
+        success:false,
+        message:"New managerId is same as current managerId."
+      })
+    }
+
+    // New manager must have a FreelanceFacultyManager record
+    const newManagerRecord = await prisma.freelanceFacultyManager.findUnique({
+      where: {
+        employeeId: newManagerId
+      },
+      include: {
+        employee: {
+          select: {
+            isActive: true
+          }
+        }
+      }
+    });
+
+    if (!newManagerRecord) {
+      return res.status(400).json({
+        success:false,
+        message:"Selected employee is not a freelance faculty manager."
+      });
+    }
+
+    if (!newManagerRecord.employee.isActive) {
+      return res.status(400).json({
+        success:false,
+        message:"New manager account is inactive."
+      });
+    }
+
+    const updatedFaculty=await prisma.freelanceFaculty.update({
+      where:{id:facultyId},
+      data:{
+        managerId:newManagerId,
+        // keep relation in sync with the manager's FreelanceFacultyManager record
+        freelanceFacultyManagerId:newManagerRecord.id
+      }
+    })
+
+    return res.status(200).json({
+      success:true,
+      data:updatedFaculty,
+      message:"Manager changed successfully."
+    })
+
+  }catch(err){
+    console.log(err);
+    return res.status(500).json({
+      success:false,
+      message:"Something went wrong while switching manager. Please try again later!"
     })
   }
 }
