@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import useAuthStore from "../stores/authstore";
+import { FiEdit, FiTrash2 } from "react-icons/fi";
 
 // calculate raw days between dates
 const getLeaveDays = (startDate, endDate) => {
@@ -56,7 +57,7 @@ const [msgType, setMsgType] = useState("success"); // success | error
   /* ================= LOAD DATA ================= */
   useEffect(() => {
   if (!msg) return;
-  const t = setTimeout(() => setMsg(""), 2000);
+  const t = setTimeout(() => setMsg(""), 4000);
   return () => clearTimeout(t);
 }, [msg]);
 
@@ -137,7 +138,33 @@ case "NOTIFICATIONS": {
 };
 
   /* ================= ACTIONS ================= */
+const deleteLeave = async (leaveId) => {
+  if (!window.confirm("Delete this leave request?")) return;
+  try {
+    await api.delete(`/manager/leaves/${leaveId}`);
+    setMsg("Leave deleted");
+    setMsgType("success");
+    loadData();
+  } catch (err) {
+    console.error("Delete leave error:", err);
+    setMsg(err?.response?.data?.message || "Delete failed");
+    setMsgType("error");
+  }
+};
 
+const deleteReimbursement = async (reimbId) => {
+  if (!window.confirm("Delete this reimbursement?")) return;
+  try {
+    await api.delete(`/manager/reimbursements/${reimbId}`);
+    setMsg("Reimbursement deleted");
+    setMsgType("success");
+    loadData();
+  } catch (err) {
+    console.error("Delete reimbursement error:", err);
+    setMsg(err?.response?.data?.message || "Delete failed");
+    setMsgType("error");
+  }
+};
   // ---- LEAVES ----
  const approveLeave = async (id) => {
   try {
@@ -263,22 +290,23 @@ return (
 
       {/* LEAVES */}
       {!loading && activeTab === "LEAVES" && (
-        <LeavesTable
-          leaves={leaves}
-          approveLeave={approveLeave}
-          rejectLeave={rejectLeave}
-        />
+<LeavesTable 
+  leaves={leaves} 
+  approveLeave={approveLeave} 
+  rejectLeave={rejectLeave}
+  deleteLeave={deleteLeave}
+/>
       )}
 
       {/* REIMBURSEMENTS */}
-      {!loading && activeTab === "REIMBURSEMENTS" && (
-        <ReimbursementsTable
-          reimbursements={reimbursements}
-          approve={approveReimbursement}
-          reject={rejectReimbursement}
-        />
-      )}
-
+{!loading && activeTab === "REIMBURSEMENTS" && (
+  <ReimbursementsTable 
+    reimbursements={reimbursements} 
+    approve={approveReimbursement}
+    reject={rejectReimbursement}
+    deleteReimbursement={deleteReimbursement}
+  />
+)}
       {/* EMPLOYEES */}
       {!loading && activeTab === "EMPLOYEES" && (
         <EmployeesTable employees={employees} />
@@ -447,7 +475,7 @@ function TabButton({ label, value, activeTab, setActiveTab }) {
 }
 
 /* ================= LEAVES ================= */
-function LeavesTable({ leaves, approveLeave, rejectLeave }) {
+function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave }) {
   if (!leaves.length) return <Empty text="No leave requests" />;
 
   return (
@@ -469,9 +497,7 @@ function LeavesTable({ leaves, approveLeave, rejectLeave }) {
               {l.user.firstName}
               {l.user.lastName ? ` ${l.user.lastName}` : ""}
             </td>
-
             <td>{l.type}</td>
-
            <td>
   <div>
     {l.startDate.slice(0, 10)} → {l.endDate.slice(0, 10)}
@@ -481,8 +507,6 @@ function LeavesTable({ leaves, approveLeave, rejectLeave }) {
     {getDisplayDays(l)}
   </div>
 </td>
-
-
   <td>{l.status}</td>
 
 {/* ✅ REJECT REASON */}
@@ -505,6 +529,13 @@ function LeavesTable({ leaves, approveLeave, rejectLeave }) {
       >
         Reject
       </button>
+            <button
+            onClick={() => deleteLeave(l.id)}
+            className="p-1 bg-red-500 text-white rounded-lg hover:bg-red-600"
+            title="Delete"
+             >
+             <FiTrash2 />
+            </button>
     </>
   )}
 </td>
@@ -517,7 +548,7 @@ function LeavesTable({ leaves, approveLeave, rejectLeave }) {
 }
 
 /* ================= REIMBURSEMENTS ================= */
-function ReimbursementsTable({ reimbursements, approve, reject }) {
+function ReimbursementsTable({ reimbursements, approve, reject, deleteReimbursement }) {
   if (!reimbursements.length) return <Empty text="No reimbursements" />;
 
   return (
@@ -539,9 +570,7 @@ function ReimbursementsTable({ reimbursements, approve, reject }) {
               {r.user?.firstName}
               {r.user?.lastName ? ` ${r.user.lastName}` : ""}
             </td>
-
             <td>₹ {r.totalAmount}</td>
-
             {/* ✅ BILLS */}
             <td>
               {r.bills && r.bills.length > 0 ? (
@@ -563,14 +592,11 @@ function ReimbursementsTable({ reimbursements, approve, reject }) {
                 <span className="text-xs text-gray-500">No bills</span>
               )}
             </td>
-
 <td>{r.status}</td>
-
 {/* ✅ REJECT REASON */}
 <td className="text-xs text-red-600 dark:text-red-400">
   {r.status === "REJECTED" ? r.rejectReason || "-" : "-"}
 </td>
-
 <td className="flex gap-2">
   {r.status === "PENDING" && (
     <>
@@ -586,6 +612,13 @@ function ReimbursementsTable({ reimbursements, approve, reject }) {
       >
         Reject
       </button>
+                        <button
+                    onClick={() => deleteReimbursement(r.id)}
+                    className="p-1 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    title="Delete"
+                  >
+                   <FiTrash2 />
+                  </button>
     </>
   )}
 </td>

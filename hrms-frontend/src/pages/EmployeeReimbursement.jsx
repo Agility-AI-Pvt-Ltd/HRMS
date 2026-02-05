@@ -44,7 +44,7 @@ export default function EmployeeReimbursement() {
   const [message, setMessage] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
-
+  const [loading, setLoading] = useState(false);
   /* SHOW MESSAGE 2 SEC */
   const [toastType, setToastType] = useState("success");
 
@@ -54,10 +54,15 @@ export default function EmployeeReimbursement() {
     setTimeout(() => setMessage(""), 2000);
   };
   /* LOAD MY REIMBURSEMENTS */
-  const loadMy = async () => {
+const loadMy = async () => {
+  setLoading(true); // 🔥 START LOADING
+  try {
     const res = await api.get("/reimbursement/me");
     setList(res.data.list);
-  };
+  } finally {
+    setLoading(false); // 🔥 END LOADING
+  }
+};
 
   useEffect(() => {
     loadMy();
@@ -113,7 +118,7 @@ export default function EmployeeReimbursement() {
 
     try {
       setSubmitting(true);
-
+      setList([]);
       await api.post("/reimbursement/create", {
         title,
         description,
@@ -123,9 +128,8 @@ export default function EmployeeReimbursement() {
       setTitle("");
       setDescription("");
       setBills([]);
-
-      loadMy();
       showMsg("Reimbursement submitted!", "success");
+      await loadMy();
     } finally {
       setSubmitting(false);
     }
@@ -252,8 +256,12 @@ export default function EmployeeReimbursement() {
       <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border dark:border-gray-700">
         <h2 className="text-xl font-bold mb-4 dark:text-white">My Requests</h2>
 
-        {list.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">No requests yet</p>
+        { loading ? (
+        <div className="text-center py-8 text-blue-600 dark:text-blue-400 animate-pulse text-lg font-semibold">
+          Loading...
+        </div>   
+        ) : list.length === 0 ? (
+          <p className="text-gray-500 dark:text-gray-400">You Will See Your Reimbursement Request After Submit....</p>
         ) : (
           <div className="space-y-4 max-h-[450px] overflow-y-scroll pr-2 custom-scroll">
             {list.map((r) => (

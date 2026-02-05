@@ -903,17 +903,17 @@ return (
     );
   }
 
-  // 🟢 No request yet
-  if (!correction) {
-    return (
-      <button
-        onClick={() => openCorrectionPopup(log.date)}
-        className="text-xs px-2 py-1 bg-indigo-600 text-white rounded"
-      >
-        Request Present
-      </button>
-    );
-  }
+  // // 🟢 No request yet
+  // if (!correction) {
+  //   return (
+  //     <button
+  //       onClick={() => openCorrectionPopup(log.date)}
+  //       className="text-xs px-2 py-1 bg-indigo-600 text-white rounded"
+  //     >
+  //       Request Present
+  //     </button>
+  //   );
+  // }
 
   return null;
 })()}

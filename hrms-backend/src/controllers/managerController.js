@@ -409,4 +409,139 @@ export const managerSendNotification = async (req, res) => {
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
+};/* =====================================================
+   🗑️ DELETE REIMBURSEMENT — MANAGER (FIXED FOREIGN KEY)
+===================================================== */
+export const deleteReimbursementByManager = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const managerId = req.user.id;
+
+    console.log("🗑️ DELETE REIMBURSEMENT:", { reimbId: id, managerId });
+
+    const reimbursement = await prisma.reimbursement.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!reimbursement) {
+      console.log("❌ Reimbursement not found:", id);
+      return res.status(404).json({ success: false, message: "Reimbursement not found" });
+    }
+
+    console.log("✅ Reimbursement found:", { reimbId: id, status: reimbursement.status });
+
+    if (reimbursement.status !== "PENDING") {
+      console.log("❌ Reimbursement not PENDING:", reimbursement.status);
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot delete ${reimbursement.status} reimbursement. Only PENDING can be deleted.` 
+      });
+    }
+
+    const deptIds = await getManagedDeptIds(managerId);
+    const canAccess = await prisma.userDepartment.findFirst({
+      where: {
+        userId: reimbursement.userId,
+        departmentId: { in: deptIds }
+      }
+    });
+
+    if (!canAccess) {
+      console.log("❌ Manager cannot access this employee");
+      return res.status(403).json({ 
+        success: false, 
+        message: "Employee not in your department" 
+      });
+    }
+
+    console.log("✅ Deleting reimbursement and related data:", id);
+    
+    // 🔥 DELETE ORDER MATTERS:
+    // 1. Delete Bills (child of Reimbursement)
+    await prisma.bill.deleteMany({
+      where: { reimbursementId: id }
+    });
+    console.log("✅ Bills deleted");
+    
+    // 2. Delete Approvals (child of Reimbursement)
+    await prisma.reimbursementApproval.deleteMany({
+      where: { reimbursementId: id }
+    });
+    console.log("✅ Approvals deleted");
+    
+    // 3. Finally delete the Reimbursement
+    await prisma.reimbursement.delete({ where: { id } });
+    console.log("✅ Reimbursement deleted");
+
+    return res.json({ success: true, message: "Reimbursement deleted successfully" });
+  } catch (err) {
+    console.error("❌ deleteReimbursementByManager ERROR:", err.message);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* =====================================================
+   🗑️ DELETE LEAVE — MANAGER (FIXED)
+===================================================== */
+export const deleteLeaveByManager = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const managerId = req.user.id;
+
+    console.log("🗑️ DELETE LEAVE:", { leaveId: id, managerId });
+
+    const leave = await prisma.leave.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!leave) {
+      console.log("❌ Leave not found:", id);
+      return res.status(404).json({ success: false, message: "Leave not found" });
+    }
+
+    console.log("✅ Leave found:", { leaveId: id, status: leave.status });
+
+    if (leave.status !== "PENDING") {
+      console.log("❌ Leave not PENDING:", leave.status);
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot delete ${leave.status} leave. Only PENDING can be deleted.` 
+      });
+    }
+
+    const deptIds = await getManagedDeptIds(managerId);
+    const canAccess = await prisma.userDepartment.findFirst({
+      where: {
+        userId: leave.userId,
+        departmentId: { in: deptIds }
+      }
+    });
+
+    if (!canAccess) {
+      console.log("❌ Manager cannot access this leave");
+      return res.status(403).json({ 
+        success: false, 
+        message: "Employee not in your department" 
+      });
+    }
+
+    console.log("✅ Deleting leave and approvals:", id);
+    
+    // 🔥 Delete Approvals first (child of Leave)
+    await prisma.leaveApproval.deleteMany({
+      where: { leaveId: id }
+    });
+    console.log("✅ Leave approvals deleted");
+    
+    // Then delete the Leave
+    await prisma.leave.delete({ where: { id } });
+    console.log("✅ Leave deleted");
+
+    return res.json({ success: true, message: "Leave deleted successfully" });
+  } catch (err) {
+    console.error("❌ deleteLeaveByManager ERROR:", err.message);
+    return res.status(500).json({ success: false, message: err.message });
+  }
 };

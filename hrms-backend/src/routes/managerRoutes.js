@@ -9,6 +9,8 @@ import {
   managerSendNotification,
   managerNotifications, // ✅ NEW (LIST FOR TABLE)
   managerTodayAttendance,
+  deleteLeaveByManager,           // 🔥 ADD THIS
+  deleteReimbursementByManager,
 } from "../controllers/managerController.js";
 
 const router = express.Router();
@@ -70,6 +72,17 @@ router.get(
   "/notifications",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   managerNotifications
+);
+router.delete(
+  "/leaves/:id",
+  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  deleteLeaveByManager
+);
+
+router.delete(
+  "/reimbursements/:id",
+  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  deleteReimbursementByManager
 );
 
 export default router;
