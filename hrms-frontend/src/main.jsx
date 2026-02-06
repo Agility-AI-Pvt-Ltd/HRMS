@@ -5,6 +5,7 @@ import App from './App';
 import { SocketProvider } from './contexts/SocketContext';
 import './index.css';
 
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter

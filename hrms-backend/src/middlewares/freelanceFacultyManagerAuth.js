@@ -11,11 +11,13 @@ export const requireFreelanceFacultyManager=async (req,res,next)=>{
         });
 
         if(!managerRecord){
-            return res.status(403),json({
+            return res.status(403).json({
                 success:false,
                 message:"Freelance faculty manager access required."
             })
         }
+
+        next();
     }catch(err){
         console.log("requireFreelanceFacultyManager Error:",err);
         return res.status(500).json({

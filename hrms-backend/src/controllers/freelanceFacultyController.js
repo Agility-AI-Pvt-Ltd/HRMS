@@ -257,87 +257,7 @@ export const assignFreelanceFaculty=async (req,res)=>{
   }
 }
 
-// ============list freelance faculties under a manager=========================
-// ============Admin only ===========================
-
-export const listFreelanceFaculties=async (req,res)=>{
-  try{
-    const {managerId}=req.body;
-
-    if(!managerId){
-      return res.status(400).json({
-        message:"Manager ID is required"
-      })
-    }
-
-    const faculties=await prisma.freelanceFaculty.findMany({
-      where:{managerId:managerId},
-      include:{
-        manager:{
-          select:{
-            id:true,
-            firstName:true,
-            lastName:true,
-            email:true
-          }
-        },
-        dayEntries:{
-          select:{
-            id:true,
-            date:true,
-            classesCount:true,
-            totalHours:true
-          },
-          orderBy:{
-            date:"desc"
-          },
-          take:10
-        },
-        _count:{
-          select:{
-            dayEntries:true
-          }
-        }
-      },
-      orderBy:{
-        createdAt:"desc"
-      }
-    });
-
-
-
-    const facultyStats=faculties.map((faculty)=>{
-      const totalClasses=faculty.dayEntries.reduce((sum,entry)=>sum+entry.classesCount,0) || 0;
-      const totalHours=faculty.dayEntries.reduce((sum,entry)=>sum+entry.totalHours,0) || 0;
-
-      return{
-        id:faculty.id,
-        name:faculty.name,
-        subjects: faculty.subjects,
-        preferredDaysOfWeek: faculty.preferredDaysOfWeek,
-        status: faculty.status,
-        manager: faculty.manager,
-        totalEntries: faculty._count.dayEntries,
-        totalClasses,
-        totalHours,
-        createdAt: faculty.createdAt,
-        updatedAt: faculty.updatedAt
-      };
-    });
-
-    return res.status(200).json({
-      success:true,
-      faculties:facultyStats
-    })
-  }catch(err){
-    console.log("Something went wrong while fetching all the faculties list:",err);
-    return res.status(500).json({
-      success:false,
-      message:"Failed to load freelance faculties"
-    })
-  }
-}
-
+// =============ADMIN ONLY==================================
 // ==============make freelance faculty inactive==================================
 export const updateFreelanceFacultyStatus=async (req,res)=>{
   try{
@@ -388,6 +308,7 @@ export const updateFreelanceFacultyStatus=async (req,res)=>{
   }
 }
 
+// =============ADMIN ONLY==================================
 // ================change faculty manager====================================
 export const changeFacultyManager=async (req,res)=>{
   try{
@@ -474,5 +395,108 @@ export const changeFacultyManager=async (req,res)=>{
     })
   }
 }
+
+
+
+// ===================================MANAGER ONLY ENDPOINTS ================================
+export const checkFreelanceFacultyManager=async (req,res)=>{
+  try{
+    const userId=req.user.id;
+
+    const record = await prisma.freelanceFacultyManager.findUnique({
+      where: { employeeId:userId },
+    });
+
+    const isFreelanceFacultyManager = !!record;
+
+    return res.json({ isFreelanceFacultyManager });
+  }catch(err){
+    console.log(err);
+    return res.status(500).json({
+      message:err?.message ?? "Something went wrong while checking user a manager or not!"
+    })
+  }
+}
+
+// ============list freelance faculties under a manager=========================
+export const listFreelanceFaculties=async (req,res)=>{
+  try{
+    const {managerId}=req.body;
+
+    if(!managerId){
+      return res.status(400).json({
+        message:"Manager ID is required"
+      })
+    }
+
+    const faculties=await prisma.freelanceFaculty.findMany({
+      where:{managerId:managerId},
+      include:{
+        manager:{
+          select:{
+            id:true,
+            firstName:true,
+            lastName:true,
+            email:true
+          }
+        },
+        dayEntries:{
+          select:{
+            id:true,
+            date:true,
+            classesCount:true,
+            totalHours:true
+          },
+          orderBy:{
+            date:"desc"
+          },
+          take:10
+        },
+        _count:{
+          select:{
+            dayEntries:true
+          }
+        }
+      },
+      orderBy:{
+        createdAt:"desc"
+      }
+    });
+
+
+
+    const facultyStats=faculties.map((faculty)=>{
+      const totalClasses=faculty.dayEntries.reduce((sum,entry)=>sum+entry.classesCount,0) || 0;
+      const totalHours=faculty.dayEntries.reduce((sum,entry)=>sum+entry.totalHours,0) || 0;
+
+      return{
+        id:faculty.id,
+        name:faculty.name,
+        subjects: faculty.subjects,
+        preferredDaysOfWeek: faculty.preferredDaysOfWeek,
+        status: faculty.status,
+        manager: faculty.manager,
+        totalEntries: faculty._count.dayEntries,
+        totalClasses,
+        totalHours,
+        createdAt: faculty.createdAt,
+        updatedAt: faculty.updatedAt
+      };
+    });
+
+    return res.status(200).json({
+      success:true,
+      faculties:facultyStats
+    })
+  }catch(err){
+    console.log("Something went wrong while fetching all the faculties list:",err);
+    return res.status(500).json({
+      success:false,
+      message:"Failed to load freelance faculties"
+    })
+  }
+}
+
+
 
 

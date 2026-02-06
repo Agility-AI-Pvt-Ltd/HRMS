@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { assignFreelanceFaculty, changeFacultyManager, createFreelanceFacultyManager, listFacultyManagers, listFreelanceFaculties, updateFreelanceFacultyStatus } from "../controllers/freelanceFacultyController.js";
+import { assignFreelanceFaculty, changeFacultyManager, checkFreelanceFacultyManager, createFreelanceFacultyManager, listFacultyManagers, listFreelanceFaculties, updateFreelanceFacultyStatus } from "../controllers/freelanceFacultyController.js";
 import { requireAuth } from "../middlewares/auth.js";
 const router=Router();
 
@@ -10,4 +10,8 @@ router.post("/listFacultiesUnderManager",requireAuth(["ADMIN"]),listFreelanceFac
 router.post("/updateStatus",requireAuth(["ADMIN"]),updateFreelanceFacultyStatus);
 router.post("/updateManager",requireAuth(["ADMIN"]),changeFacultyManager);
 
+// =============================Manager Routes ========================================
+router.get("/facultyManager/me",requireAuth(["LYF_EMPLOYEE"]),checkFreelanceFacultyManager);
+
+router.post("/managerFaculties",requireAuth(["LYF_EMPLOYEE"]),listFreelanceFaculties);
 export default router;

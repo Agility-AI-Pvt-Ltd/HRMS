@@ -103,3 +103,23 @@ export const changeFacultyManager=async ({facultyId,newManagerId})=>{
     }
   }
 }
+
+// list faculties for manager lyf_employee only
+export const listFacultiesForManager=async (managerId)=>{
+  try{
+    const res=await api.post("/freelance/managerFaculties",{managerId});
+    const data=res?.data;
+    if(data.success){
+      return {
+        faculties:data.faculties,
+        error:null
+      }
+    }
+    return {
+      error:null
+    }
+  }catch(err){
+    console.log(err);
+    return {error:err};
+  }
+}
