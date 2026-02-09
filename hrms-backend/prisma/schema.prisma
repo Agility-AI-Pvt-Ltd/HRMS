@@ -41,6 +41,8 @@ model User {
   reimbursementApprovals ReimbursementApproval[]
 
   attendanceCorrections AttendanceCorrection[]
+  witnessedCorrections AttendanceCorrection[] @relation("CorrectionWitness")
+
 
   //  Resignation relation added
   resignations Resignation[]
@@ -138,7 +140,8 @@ model AttendanceCorrection {
   reason      String
   checkIn     DateTime?
   checkOut    DateTime?
-  witness     String?
+  witnessId   String?      // 👈 NEW
+  witness     User? @relation("CorrectionWitness", fields: [witnessId], references: [id])
   status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
   adminReason String?
   createdAt   DateTime  @default(now())

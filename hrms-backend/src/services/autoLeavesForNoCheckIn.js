@@ -14,9 +14,7 @@ const toLocalISO = (date) => {
   );
 };
 
-// AFTER:
 const toDateOnly = (dateISO) => {
-  // Returns date at UTC midnight - Prisma will store as DATE only
   const d = new Date(dateISO);
   d.setUTCHours(0, 0, 0, 0);
   return d;
@@ -25,10 +23,6 @@ const toDateOnly = (dateISO) => {
 export async function markAutoLeavesForDate(dateISO) {
   const dateOnly = toDateOnly(dateISO);
 
- // REMOVE these lines (or change to):
-console.log("date:", dateOnly);
-
-  //  All active, non-admin users
   const users = await prisma.user.findMany({
     where: {
       isActive: true,
@@ -39,85 +33,118 @@ console.log("date:", dateOnly);
 
   console.log(`[AUTO-LEAVE] Running for ${dateISO}, users: ${users.length}`);
 
-  for (const user of users) {
-    //  Skip if holiday (match by whole day range, not exact timestamp)
-    const holiday = await prisma.holiday.findFirst({
-      where: {
-        date: dateOnly,   // Direct comparison with @db.Date
-      },
-    });
-    if (holiday) continue;
+  const userIds = users.map((u) => u.id);
 
-    // Skip if weekly off for this user (fixed or roster)
-    const dayName = new Date(dateOnly).toLocaleDateString("en-US", {
-      weekday: "long",
-      timeZone: "Asia/Kolkata",
-    });
+  // ✅ FETCH ALL DATA IN PARALLEL
+  const [holidays, weeklyOffs, existingLeaves, earnedCompOffs, attendances] =
+    await Promise.all([
+      // 1️⃣ Check for holidays
+      prisma.holiday.findMany({
+        where: { date: dateOnly },
+        select: { id: true },
+      }),
 
-    const weeklyOff = await prisma.weeklyOff.findFirst({
-      where: {
-        userId: user.id,
-        OR: [
-          {
-            isFixed: true,
-            offDay: dayName,
-          },
-          {
-            isFixed: false,
-            offDate: dateOnly,   // Direct comparison
-          },
-        ],
-      },
-    });
+      // 2️⃣ Get weekly offs for this date
+      prisma.weeklyOff.findMany({
+        where: {
+          userId: { in: userIds },
+          OR: [
+            {
+              isFixed: true,
+              offDay: new Date(dateOnly).toLocaleDateString("en-US", {
+                weekday: "long",
+                timeZone: "Asia/Kolkata",
+              }),
+            },
+            {
+              isFixed: false,
+              offDate: dateOnly,
+            },
+          ],
+        },
+        select: { userId: true },
+      }),
 
-    if (weeklyOff) continue;
+      // 3️⃣ Get ALL approved leaves covering this date
+      // ✅ INCLUDING COMP_OFF, WFH, UNPAID - sab types
+      prisma.leave.findMany({
+        where: {
+          userId: { in: userIds },
+          status: "APPROVED",
+          startDate: { lte: dateOnly },
+          endDate: { gte: dateOnly },
+          isAdminDeleted: false,
+          isEmployeeDeleted: false,
+        },
+        select: { userId: true, type: true },
+      }),
 
-    // Skip if already has APPROVED leave that covers this date
-// AFTER:
-const existingLeave = await prisma.leave.findFirst({
-  where: {
-    userId: user.id,
-    status: "APPROVED",
-    startDate: { lte: dateOnly },
-    endDate: { gte: dateOnly },
-    isAdminDeleted: false,
-    isEmployeeDeleted: false,
-  },
-});
-    if (existingLeave) continue;
+      // 4️⃣ Get earned COMP_OFF from CompOff table (weekend work)
+      prisma.compOff.findMany({
+        where: {
+          userId: { in: userIds },
+          status: "APPROVED",
+          workDate: dateOnly,
+        },
+        select: { userId: true },
+      }),
 
-    // Skip if there is any attendance row for this date
-    const attendance = await prisma.attendance.findFirst({
-      where: {
-        userId: user.id,
-        date: dateOnly,   // Direct comparison
-      },
-    });
-    if (attendance) continue;
+      // 5️⃣ Get attendance records for this date
+      prisma.attendance.findMany({
+        where: {
+          userId: { in: userIds },
+          date: dateOnly,
+        },
+        select: { userId: true },
+      }),
+    ]);
 
-    // UNPAID leave for that date
-// AFTER:
-await prisma.leave.create({
-  data: {
-    userId: user.id,
-    type: "UNPAID",
-    startDate: dateOnly,
-    endDate: dateOnly,      // Same date for single day leave
-    status: "APPROVED",
-    reason: "Auto-marked: no attendance recorded for this day",
-  },
-});
+  // ✅ CREATE LOOKUP SETS
+  const holidayExists = holidays.length > 0;
+  const weeklyOffUserIds = new Set(weeklyOffs.map((w) => w.userId));
+  const leavedUserIds = new Set(existingLeaves.map((l) => l.userId)); // ✅ Includes COMP_OFF, WFH, etc
+  const earnedCompOffUserIds = new Set(earnedCompOffs.map((c) => c.userId));
+  const attendanceUserIds = new Set(attendances.map((a) => a.userId));
 
-    console.log(
-      `[AUTO-LEAVE] UNPAID leave created for user=${user.id} on ${dateISO}`,
-    );
+  // ✅ FILTER ELIGIBLE USERS
+  const eligibleUserIds = userIds.filter(
+    (userId) =>
+      !holidayExists &&
+      !weeklyOffUserIds.has(userId) &&
+      !leavedUserIds.has(userId) && // ✅ Covers COMP_OFF leaves too
+      !earnedCompOffUserIds.has(userId) &&
+      !attendanceUserIds.has(userId)
+  );
+
+  console.log(`[AUTO-LEAVE] Eligible users for UNPAID leave: ${eligibleUserIds.length}`);
+
+  if (eligibleUserIds.length === 0) {
+    console.log(`[AUTO-LEAVE] Completed for ${dateISO} - No eligible users`);
+    return;
   }
 
+  // ✅ BATCH CREATE
+  const leaveData = eligibleUserIds.map((userId) => ({
+    userId,
+    type: "UNPAID",
+    startDate: dateOnly,
+    endDate: dateOnly,
+    status: "APPROVED",
+    reason: "Auto-marked: no attendance recorded for this day",
+  }));
+
+  await prisma.leave.createMany({
+    data: leaveData,
+  });
+
+  console.log(
+    `[AUTO-LEAVE] Created ${eligibleUserIds.length} UNPAID leaves for ${dateISO}`
+  );
   console.log(`[AUTO-LEAVE] Completed for ${dateISO}`);
 }
 
 cron.schedule(
-  "3 18 * * *",
+  "5 19 * * *",
   async () => {
     console.log("[AUTO-LEAVE] Cron triggered at", new Date().toISOString());
     const now = new Date();

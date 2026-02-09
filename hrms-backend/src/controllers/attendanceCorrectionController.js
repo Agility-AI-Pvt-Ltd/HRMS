@@ -68,17 +68,16 @@ export const requestPresentCorrection = async (req, res) => {
       });
     }
 
-    let witnessName = witness || "";
     if (witnessId) {
-      const witnessUser = await prisma.user.findFirst({
-        where: { id: witnessId, isActive: true },
-        select: { firstName: true, lastName: true },
-      });
-      if (!witnessUser) {
-        return res.status(400).json({ message: "Selected witness is invalid" });
-      }
-      witnessName = `${witnessUser.firstName} ${witnessUser.lastName || ""}`.trim();
-    }
+  const witnessUser = await prisma.user.findFirst({
+    where: { id: witnessId, isActive: true },
+    select: { id: true },
+  });
+  if (!witnessUser) {
+    return res.status(400).json({ message: "Selected witness is invalid" });
+  }
+}
+
 
     const reasonText = reason && String(reason).trim() ? reason : "Missed check-in correction";
 
@@ -89,7 +88,7 @@ export const requestPresentCorrection = async (req, res) => {
         reason: reasonText,
         checkIn,
         checkOut,
-        witness: witnessName,
+        witnessId: witnessId || null,
       },
     });
 
@@ -146,11 +145,16 @@ export const getAllAttendanceCorrections = async (req, res) => {
     return res.status(403).json({ message: "Admin only" });
   }
 
-  const list = await prisma.attendanceCorrection.findMany({
-    where: { status: "PENDING" },
-    include: { user: true },
-    orderBy: { createdAt: "desc" }
-  });
+const list = await prisma.attendanceCorrection.findMany({
+  where: { status: "PENDING" },
+  include: {
+    user: true,
+    witness: {
+      select: { firstName: true, lastName: true }
+    }
+  },
+  orderBy: { createdAt: "desc" }
+});
 
   res.json({ success: true, data: list });
 };

@@ -26,28 +26,44 @@ export default function WeeklyOff() {
   useEffect(() => { fetchData(); }, []);
 
   // create weekly off
-  const submit = async () => {
-    if (!form.userId) return alert("Select employee");
-    if (!form.offDay && !form.offDate) return alert("Select day or date");
+const submit = async () => {
+  if (!form.userId) return alert("Select employee");
 
-    setLoading(true);
-    await api.post("/weekly-off/assign", form);
-    setLoading(false);
+  const payload = { ...form };
 
-    fetchData();
-    setForm({ userId:"", offDay:"", offDate:"", isFixed:true });
-  };
+  if (form.isFixed) {
+    if (!form.offDay) return alert("Remove Weekly Reapeat ? ");
+    payload.offDate = null;
+  } else {
+    if (!form.offDate) return alert("Select one-time off date");
+    payload.offDay = null;
+  }
+
+  setLoading(true);
+  await api.post("/weekly-off/assign", payload);
+  setLoading(false);
+
+  fetchData();
+  setForm({ userId:"", offDay:"", offDate:"", isFixed:true });
+};
 
   // update weekly off
   const update = async () => {
     if (!edit.offDay && !edit.offDate) return alert("Enter at least day or date");
 
     setLoading(true);
-    await api.put(`/weekly-off/update/${edit.id}`, {
-      offDay: edit.offDay,
-      offDate: edit.offDate,
-      isFixed: edit.isFixed
-    });
+ const payload = { ...edit };
+
+if (edit.isFixed) {
+  if (!edit.offDay) return alert("Select weekly off day");
+  payload.offDate = null;
+} else {
+  if (!edit.offDate) return alert("Select one-time off date");
+  payload.offDay = null;
+}
+
+await api.put(`/weekly-off/update/${edit.id}`, payload);
+
     setLoading(false);
 
     setEdit(null);
@@ -178,11 +194,19 @@ export default function WeeklyOff() {
             />
 
             <label className="flex gap-2 mt-3 items-center">
-              <input
-                type="checkbox"
-                checked={edit.isFixed}
-                onChange={()=>setEdit({...edit,isFixed:!edit.isFixed})}
-              />
+<input
+  type="checkbox"
+  checked={form.isFixed}
+  onChange={()=>{
+    setForm(f=>({
+      ...f,
+      isFixed: !f.isFixed,
+      offDay: f.isFixed ? "" : f.offDay,
+      offDate: f.isFixed ? f.offDate : ""
+    }))
+  }}
+/>
+
               Weekly Repeat?
             </label>
 

@@ -495,9 +495,16 @@ const submitReject = async (reason) => {
             Date: {c.date.slice(0, 10)}
           </div>
 
-          <div className="text-xs text-gray-600 mt-1">
-            <b>Reason:</b> {c.reason}
-          </div>
+        <div className="text-xs text-gray-600 mt-1">
+  <b>Reason:</b> {c.reason}
+</div>
+
+{c.witness && (
+  <div className="text-xs text-gray-600 mt-1">
+    <b>Witness:</b> {c.witness.firstName} {c.witness.lastName}
+  </div>
+)}
+
 
           {c.status === "REJECTED" && c.adminReason && (
             <div className="text-xs text-red-600 mt-1">
