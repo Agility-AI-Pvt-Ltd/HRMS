@@ -480,18 +480,12 @@ if (!leave.user?.isActive) {
 export const updateLeave = async (req, res) => {
   try {
     const id = req.params.id;
-    const input = req.body;
+    const leave = await prisma.leave.findUnique({
+      where: { id },
+      include: { user: true }
+    });
 
-    const leave = await prisma.leave.findUnique({ where: { id }, include: { user: true } });
-
-    if (!leave || !leave.user.isActive) {
-  return res.status(404).json({
-    success: false,
-    message: "Leave not found",
-  });
-}
-
-    if (!leave)
+    if (!leave || !leave.user?.isActive)
       return res.status(404).json({ success: false, message: "Leave not found" });
 
     if (req.user.role !== "ADMIN") {
@@ -503,108 +497,41 @@ export const updateLeave = async (req, res) => {
           success: false,
           message: "Cannot modify approved/rejected leave"
         });
+    }
 
-delete input.status;
-delete input.approverId;
-delete input.userId;
-delete input.rejectReason;
+    const {
+      type,
+      startDate,
+      endDate,
+      reason,
+      responsiblePerson
+    } = req.body;
 
-// 🔥 ALLOW ONLY THIS EXTRA FIELD
-if ("responsiblePerson" in input) {
-  input.responsiblePersonId = input.responsiblePerson || null;
-  delete input.responsiblePerson;
-}
- }
-   // 🔥 HALF DAY VALIDATION (UPDATE)
-    if (
-      isHalfDay(input.type || leave.type) &&
-      input.startDate &&
-      input.endDate &&
-      input.startDate !== input.endDate
-    ) {
+    // 🔥 SAFE DATA MAPPING (NO DIRECT req.body)
+    const data = {};
+
+    if (type) data.type = type;
+    
+    if (startDate) data.startDate = new Date(startDate);
+    if (endDate) data.endDate = new Date(endDate);
+    
+    if (reason !== undefined) data.reason = reason;
+    
+    if (responsiblePerson !== undefined) {
+      data.responsiblePersonId = responsiblePerson || null;
+    }
+
+    // HALF DAY VALIDATION
+    if ((type || leave.type) === "HALF_DAY" && startDate && endDate && startDate !== endDate) {
       return res.status(400).json({
         success: false,
         message: "Half Day must be for a single date"
       });
     }
 
-    // ⭐ CHECK FOR OVERLAPPING APPROVED LEAVES (when updating dates)
-    if (input.startDate || input.endDate) {
-      const requestStart = new Date(input.startDate || leave.startDate);
-      const requestEnd = new Date(input.endDate || leave.endDate);
-
-      if (input.startDate || input.endDate) {
-  const s = new Date(input.startDate || leave.startDate);
-  const e = new Date(input.endDate || leave.endDate);
-  const diff =
-    Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
-
-  if (diff >= 3 && !input.reason?.trim() && !leave.reason?.trim()) {
-    return res.status(400).json({
-      success: false,
-      message: "Reason is mandatory for leave of 3 days or more",
-    });
-  }
-  // 🔥 RULE: WFH → reason compulsory (update also)
-if (
-  (input.type || leave.type) === "WFH" &&
-  !input.reason?.trim() &&
-  !leave.reason?.trim()
-) {
-  return res.status(400).json({
-    success: false,
-    message: "Reason is mandatory for Work From Home",
-  });
-}
-
-}
-if ("responsiblePerson" in input) {
-  if (input.responsiblePerson) {
-    const userExists = await prisma.user.findUnique({
-      where: { id: input.responsiblePerson }
-    });
-
-    if (!userExists) {
-      return res.status(400).json({
-        success: false,
-        message: "Selected responsible person is invalid"
-      });
-    }
-
-    input.responsiblePersonId = input.responsiblePerson;
-  } else {
-    input.responsiblePersonId = null;
-  }
-
-  delete input.responsiblePerson;
-}
-
-const overlappingLeaves = await prisma.leave.findMany({
-where: {
-  userId: leave.userId,
-  status: "APPROVED",
-  id: { not: id },
-  isAdminDeleted: false,
-  isEmployeeDeleted: false,
-  AND: [
-    { startDate: { lte: requestEnd } },
-    { endDate: { gte: requestStart } }
-  ]
-}
-      });
-
-      if (overlappingLeaves.length > 0) {
-        const leaveTypeName = getLeaveTypeName(input.type || leave.type);
-        return res.status(400).json({
-          success: false,
-          message: `You already have an approved leave on this date range. Cannot update ${leaveTypeName}.`
-        });
-      }
-    }
-
     const updated = await prisma.leave.update({
       where: { id },
-      data: input,
+      data,
       include: {
         user: true,
         approver: true,
@@ -612,18 +539,14 @@ where: {
       }
     });
 
-    // ✨ Custom success message
-    const leaveTypeName = getLeaveTypeName(updated.type);
-    const successMessage = `Your ${leaveTypeName} request has been updated successfully`;
-
     return res.json({
       success: true,
-      message: successMessage,
+      message: "Leave updated successfully",
       leave: updated
     });
 
   } catch (error) {
-    console.error("updateLeave ERROR:", error);
+    console.error("🔥 UPDATE LEAVE ERROR:", error); // 👈 THIS WILL SHOW REAL ERROR
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

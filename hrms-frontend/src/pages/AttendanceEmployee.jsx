@@ -551,7 +551,7 @@ return (
 {/* Assigned WeekOff */}
 <div className="p-5 rounded-2xl shadow-xl bg-white dark:bg-gray-900 border dark:border-[#2a2c33]">
   <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
-    {weekOff  ? weekOff.isFixed  ? weekOff.offDay : `${weekOff.offDate}`  : "Not Assigned"}
+    {weekOff  ? weekOff.isFixed  ? weekOff.offDay : toISODate(weekOff.offDate)   : "Not Assigned"}
   </div>
   <div className="text-sm text-gray-600 dark:text-gray-300">
     Assigned WeekOff

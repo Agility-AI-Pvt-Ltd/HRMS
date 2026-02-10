@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import useAuthStore from "../stores/authstore";
-import { FiPlusCircle, FiCalendar, FiClock } from "react-icons/fi";
+import { FiPlusCircle, FiCalendar, FiClock, FiEdit } from "react-icons/fi";
 import EmployeeDropdown from "../components/EmployeeDropdown";
 import ConfirmDelPopup from "../components/ConfirmDelPopup";
 
@@ -128,6 +128,8 @@ export default function Leaves() {
   const [applyLoading, setApplyLoading] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [editingLeaveId, setEditingLeaveId] = useState(null);
+  const [editInfo, setEditInfo] = useState("");
 
   const [holidaysList, setHolidaysList] = useState([]);
   const [weekOff, setWeekOff] = useState(null);
@@ -139,13 +141,15 @@ export default function Leaves() {
     return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  const [form, setForm] = useState({
-    type: "CASUAL",
-    startDate: "",
-    endDate: "",
-    reason: "",
-    responsiblePerson: "",
-  });
+const emptyLeaveForm = {
+  type: "CASUAL",
+  startDate: "",
+  endDate: "",
+  reason: "",
+  responsiblePerson: "",
+};
+const [form, setForm] = useState(emptyLeaveForm);
+
 
   // const [showTodayPopup, setShowTodayPopup] = useState(false);
   const [formMode, setFormMode] = useState("LEAVE"); // LEAVE | CANCEL
@@ -280,9 +284,15 @@ const approvedUnpaidCount = leaves.filter(
 
   useEffect(() => {
     if (!msg) return;
-    const t = setTimeout(() => setMsg(""), 3000);
+    const t = setTimeout(() => setMsg(""), 5000);
     return () => clearTimeout(t);
   }, [msg]);
+
+  useEffect(() => {
+    if (!editInfo) return;
+    const t = setTimeout(() => setEditInfo(""), 5000);
+    return () => clearTimeout(t);
+  }, [editInfo]);
 
   useEffect(() => {
     if (!applyMessage) return;
@@ -313,9 +323,44 @@ const approvedUnpaidCount = leaves.filter(
     load();
   }, []);
 
-  const apply = async () => {
-    const days = calcLeaveDays(form.startDate, form.endDate);
+  // 3) Add this new function (apply ke upar/neeche kahin bhi component ke andar)
+const startEditLeave = (l) => {
+  setFormMode("LEAVE");
+  setEditingLeaveId(l.id);
+  setForm({
+    type: l.type || "CASUAL",
+    startDate: l.startDate?.slice(0, 10) || "",
+    endDate: l.endDate?.slice(0, 10) || "",
+    reason: l.reason || "",
+    responsiblePerson: l.responsiblePerson?.id || "",
+  });
+  setEditInfo("You can update your leave here");
+  setMsgType("success");
+  document.getElementById("leaveFormCard")?.scrollIntoView({
+  behavior: "smooth",
+  block: "start",
+});
 
+};
+
+  const apply = async () => {
+     
+    if (!form.startDate || !form.endDate) {
+    const t = "Start date and end date are required";
+    setApplyMessage(t);
+    setMsg(t);
+    setMsgType("error");
+    return;
+  }
+    const days = calcLeaveDays(form.startDate, form.endDate);
+  
+    if (new Date(form.startDate) > new Date(form.endDate)) {
+    const t = "Start date cannot be after end date";
+    setApplyMessage(t);
+    setMsg(t);
+    setMsgType("error");
+    return;
+  }
     // 🚫 single-day leave check
     if (days === 1) {
       const dateCheck = checkHolidayOrWeekOff(
@@ -358,12 +403,29 @@ const approvedUnpaidCount = leaves.filter(
       return;
     }
     setApplyLoading(true);
+    setApplied(false);
     // ⬅ button text Applying...
     try {
-      const res = await api.post("/leaves", {
+      const payload = {
         ...form,
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : null,
+        endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
         responsiblePerson: form.responsiblePerson || null,
-      });
+      };
+
+    let res;
+       // ✏️ EDIT MODE
+    if (editingLeaveId) {
+      res = await api.put(`/leaves/${editingLeaveId}`, payload);
+      setApplyMessage("Leave updated successfully.");
+      setMsg("Leave updated successfully.");
+    }
+    // 🆕 CREATE MODE
+    else {
+      res = await api.post("/leaves", payload);
+      setApplyMessage("Your leave is successfully sent.");
+      setMsg("Your leave is successfully sent.");
+    }
 
       // ✅ UPDATE USER BALANCE WITHOUT REFRESH
       if (res.data.updatedUser) {
@@ -372,24 +434,21 @@ const approvedUnpaidCount = leaves.filter(
           ...res.data.updatedUser,
         });
       }
-      setApplied(true);
-      setApplyMessage("Your leave is successfully sent.");
-      setMsg("Your leave is successfully sent.");
       setMsgType("success");
+      setApplied(true);
+ 
+    // Refresh leaves
+    const r = await api.get("/leaves");
+    setLeaves(r.data.leaves || []); 
+
+     // Reset form & edit state
+    setEditingLeaveId(null);
+    setForm(emptyLeaveForm);
 
       setTimeout(() => {
         setApplied(false);
         setApplyMessage("");
       }, 2000);
-
-      setForm({
-        type: "CASUAL",
-        startDate: "",
-        endDate: "",
-        reason: "",
-        responsiblePerson: "",
-      });
-
       load();
     } catch (err) {
       const errorMsg = err.response?.data?.message || "Failed to apply leave";
@@ -401,35 +460,28 @@ const approvedUnpaidCount = leaves.filter(
     }
   };
 
-  const updateStatus = async (id, status) => {
-    try {
-      // ✅ OPTIMISTIC UPDATE (instant UI change)
-      setLeaves((prev) =>
-        prev.map((l) =>
-          l.id === id
-            ? {
-                ...l,
-                status: status === "APPROVED" ? "APPROVED" : "REJECTED",
-              }
-            : l,
-        ),
-      );
+const updateStatus = async (id, status) => {
+  try {
+    setLeaves((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { ...l, status: status === "APPROVED" ? "APPROVED" : "REJECTED" }
+          : l
+      )
+    );
 
-      // Then call backend
-      await api.patch(`/leaves/${id}/approve`, { action: status });
+    await api.patch(`/leaves/${id}/approve`, { action: status });
 
-      setMsg(`Leave ${status.toLowerCase()}`);
-      setMsgType("success");
+    setMsg(`Leave ${status.toLowerCase()}`);
+    setMsgType("success");
 
-      // ✅ FINAL REFRESH (to get any backend-calculated fields)
-      load();
-    } catch (err) {
-      // ❌ Revert on error
-      setMsg(err?.response?.data?.message || "Action failed");
-      setMsgType("error");
-      load(); // reload original data
-    }
-  };
+    load();
+  } catch (err) {
+    setMsg(err?.response?.data?.message || "Action failed");
+    setMsgType("error");
+    load();
+  }
+};
 
   return (
     <div className="space-y-10">
@@ -490,7 +542,7 @@ const approvedUnpaidCount = leaves.filter(
       )}
 
       {!isAdmin && (
-        <GlassCard>
+        <GlassCard id="leaveFormCard">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h3 className="text-xl font-semibold">
               {formMode === "LEAVE"
@@ -513,7 +565,11 @@ const approvedUnpaidCount = leaves.filter(
               </button>
             </div>
           </div>
-
+          {editInfo && formMode === "LEAVE" && (
+    <div className="mb-4 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+      {editInfo}
+    </div>
+  )}
           {formMode === "LEAVE" ? (
             <>
               {/* Apply Leave form */}
@@ -747,7 +803,7 @@ const approvedUnpaidCount = leaves.filter(
               }
               disabled={
                 formMode === "LEAVE"
-                  ? applyLoading || applied
+                  ? applyLoading
                   : cancelSubmitLoading || cancelSubmitted
               }
               className={`px-6 py-3 rounded-xl font-semibold shadow-lg text-white
@@ -767,9 +823,14 @@ const approvedUnpaidCount = leaves.filter(
               {formMode === "LEAVE"
                 ? applied
                   ? "Applied ✔"
-                  : applyLoading
-                    ? "Applying..."
-                    : "Apply"
+                 : applyLoading
+                  ? editingLeaveId
+                  ? "Updating..."
+                  : "Applying..."
+                  : editingLeaveId
+                  ? "Update Leave"
+                  : "Apply"
+
                 : cancelSubmitted
                   ? "Submitted ✔"
                   : cancelSubmitLoading
@@ -842,6 +903,7 @@ const approvedUnpaidCount = leaves.filter(
                   setDeleteId(id);
                   setShowDelete(true);
                 }}
+                onEdit={startEditLeave}
               />
             ))}
           </div>
@@ -883,7 +945,7 @@ const approvedUnpaidCount = leaves.filter(
   );
 }
 
-function LeaveItem({ l, isAdmin, onDelete }) {
+function LeaveItem({ l, isAdmin, onDelete, onEdit }) {
   const getDays = () => {
     if (!l?.startDate || !l?.endDate) return 0;
     const s = new Date(l.startDate);
@@ -950,17 +1012,31 @@ function LeaveItem({ l, isAdmin, onDelete }) {
           </div>
         )}
       </div>
-      {!isAdmin && l.status === "PENDING" && (
-        <button
-          onClick={() => onDelete(l.id)}
-          className="absolute top-4 right-4 text-red-500 hover:text-red-700 
-           font-bold text-lg bg-white dark:bg-gray-900 
-           rounded-full w-7 h-7 flex items-center justify-center shadow"
-          title="Delete leave"
-        >
-          ✕
-        </button>
-      )}
+{!isAdmin && l.status === "PENDING" && (
+  <div className="absolute top-4 right-4 flex items-center gap-2">
+    
+    {/* ✏️ EDIT BUTTON */}
+    <button
+      onClick={() => onEdit(l)}
+      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600"
+      title="Edit leave"
+    >
+      <FiEdit className="text-xs" /> Edit
+    </button>
+
+    {/* ❌ DELETE BUTTON */}
+    <button
+      onClick={() => onDelete(l.id)}
+      className="text-red-500 hover:text-red-700 font-bold text-lg 
+                 rounded-full w-7 h-7 flex items-center justify-center"
+      title="Delete leave"
+    >
+      ✕
+    </button>
+
+  </div>
+)}
+
       <div className="flex items-center gap-3">
         <span
           className={`px-4 py-1 rounded-full text-white text-sm font-medium ${l.status === "APPROVED" ? "bg-green-600" : l.status === "REJECTED" ? "bg-red-600" : "bg-yellow-500"}`}
@@ -981,9 +1057,15 @@ function PageTitle({ title, sub }) {
   );
 }
 
-function GlassCard({ children }) {
+function GlassCard({ children, className = "", ...rest }) {
   return (
-    <div className="p-6 rounded-2xl bg-white/60 dark:bg-gray-800/40 shadow border border-gray-200 dark:border-gray-700 backdrop-blur-lg">
+    <div
+      {...rest}  // yahan se id, onClick, etc. sab div par aa jayenge
+      className={
+        "p-6 rounded-2xl bg-white/60 dark:bg-gray-800/40 shadow border border-gray-200 dark:border-gray-700 backdrop-blur-lg " +
+        className
+      }
+    >
       {children}
     </div>
   );
