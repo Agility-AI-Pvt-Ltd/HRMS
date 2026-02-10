@@ -55,6 +55,11 @@ model User {
   compOffs       CompOff[]
   weeklyOffs     WeeklyOff[]
 
+  // FREELANCE FACULTY SYSTEM
+  freelanceFacultyManagerRecord FreelanceFacultyManager?   @relation("FreelanceFacultyManagerEmployee")
+  managedFreelanceFaculties     FreelanceFaculty[]         @relation("FreelanceFacultyManager")
+  // createdFreelanceDayEntries    FreelanceFacultyDayEntry[] @relation("FreelanceFacultyDayEntryCreator")
+
   @@map("users")
 }
 
@@ -136,7 +141,7 @@ model Attendance {
 model AttendanceCorrection {
   id          String    @id @default(uuid())
   userId      String
-  date        DateTime   @db.Date 
+  date        DateTime  @db.Date
   reason      String
   checkIn     DateTime?
   checkOut    DateTime?
@@ -327,12 +332,69 @@ model ReimbursementApproval {
   @@unique([reimbursementId, managerId])
 }
 
+// ============================FREELANCE FACULTY MANAGER=====================
+model FreelanceFacultyManager {
+  id         String   @id @default(uuid())
+  employeeId String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee  User               @relation("FreelanceFacultyManagerEmployee", fields: [employeeId], references: [id])
+  faculties FreelanceFaculty[]
+
+  @@map("freelance_faculty_managers")
+}
+
+// ==============================FREELANCE FACULTY========================
+model FreelanceFaculty {
+  id                  String   @id @default(uuid())
+  managerId           String // FK to User.id (the manager employee)
+  name                String
+  subjects            String[] // Array of subject names
+  preferredDaysOfWeek String[] // Array like ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+  status              String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  manager                   User                       @relation("FreelanceFacultyManager", fields: [managerId], references: [id])
+  dayEntries                FreelanceFacultyDayEntry[]
+  freelanceFacultyManager   FreelanceFacultyManager?   @relation(fields: [freelanceFacultyManagerId], references: [id])
+  freelanceFacultyManagerId String?
+
+  @@index([managerId])
+  @@map("freelance_faculties")
+}
+
+/// *
+///  * ===================== FREELANCE FACULTY DAY ENTRY =====================
+model FreelanceFacultyDayEntry {
+  id           String   @id @default(uuid())
+  facultyId    String // FK to FreelanceFaculty.id
+  date         DateTime @db.Date // Date only (no time)
+  classesCount Int      @default(0) // Number of classes (each = 1.5 hours)
+  subjects     String[] // Array of subjects taught that day
+  batch        String // Batch name/identifier
+  topic        String // Topic taught
+  totalHours   Float // Computed: classesCount * 1.5 (store for querying)
+  // createdBy    String // FK to User.id (the manager who logged this)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  faculty FreelanceFaculty @relation(fields: [facultyId], references: [id])
+  // creator User             @relation("FreelanceFacultyDayEntryCreator", fields: [createdBy], references: [id])
+
+  @@unique([facultyId, date]) // One entry per faculty per day
+  @@index([facultyId, date])
+  @@map("freelance_faculty_day_entries")
+}
+
 /// *
 ///  * ===================== ENUMS =====================
 enum Role {
   ADMIN
   AGILITY_EMPLOYEE
   LYF_EMPLOYEE
+  // FREELANCE_FACULTY_MANAGER
 }
 
 enum LeaveType {
