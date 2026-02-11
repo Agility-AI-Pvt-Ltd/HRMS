@@ -5,7 +5,7 @@ import { fetchIsFreelanceManager } from "../api/freelanceFaculty";
 import useAuthStore from "../stores/authstore";
 
 
-const FreelanceFAcultyManagerRoute = ({children}) => {
+const FreelanceFacultyManagerRoute = ({children}) => {
     const user=useAuthStore((s)=>s.user);
     const [checking, setChecking] = useState(true);
     const [isManager, setIsManager] = useState(false);
@@ -56,4 +56,4 @@ const FreelanceFAcultyManagerRoute = ({children}) => {
       return allowed ? children : <Navigate to="/unauthorized" replace />;
 }    
 
-export default FreelanceFAcultyManagerRoute;
+export default FreelanceFacultyManagerRoute;

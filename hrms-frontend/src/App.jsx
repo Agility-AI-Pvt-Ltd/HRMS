@@ -26,7 +26,7 @@ import LayoutPremium from "./components/LayoutPremium";
 import FreelanceFacultyDashboard from "./pages/FreelanceFacultyDashboard.jsx";
 import FreelanceFacultyManagerView from "./pages/FreelanceFacultyManagerView.jsx";
 import FreelanceManagerDashboard from "./pages/FreelanceManagerDashboard.jsx";
-import FreelanceFAcultyManagerRoute from "./components/FreelanceFAcultyManagerRoute.jsx";
+import FreelanceFacultyManagerRoute from "./components/FreelanceFacultyManagerRoute.jsx";
 import FreelanceFacultyPage from "./pages/FreelanceFacultyPage.jsx";
 
 
@@ -108,9 +108,9 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={["LYF_EMPLOYEE"]}>
               <LayoutPremium>
-                <FreelanceFAcultyManagerRoute>
+                <FreelanceFacultyManagerRoute>
                   <FreelanceManagerDashboard/>
-                </FreelanceFAcultyManagerRoute>
+                </FreelanceFacultyManagerRoute>
               </LayoutPremium>
             </ProtectedRoute>
           }
