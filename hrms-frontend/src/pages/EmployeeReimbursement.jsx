@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import ConfirmDelPopup from "../components/ConfirmDelPopup";
+import { FiEdit, FiTrash2 } from "react-icons/fi";
 
 /* ----------------- STATUS COLORS ----------------- */
 const statusColor = {
   PENDING: "text-yellow-600 dark:text-yellow-400",
-  APPROVED: "text-green-600 dark:text-green-400",
-  REJECTED: "text-red-600 dark:text-red-400",
+  APPROVED: "text-green-600 dark:text-green-400", // Approved by Manager
+  REJECTED: "text-red-600 dark:text-red-400", // Rejected by Managerz 
 };
 
 /* ----------------- TOAST MESSAGE ----------------- */
@@ -45,6 +46,8 @@ export default function EmployeeReimbursement() {
   const [showDelete, setShowDelete] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [editingReimbId, setEditingReimbId] = useState(null);
+  const [editInfo, setEditInfo] = useState("");
   /* SHOW MESSAGE 2 SEC */
   const [toastType, setToastType] = useState("success");
 
@@ -66,9 +69,31 @@ const loadMy = async () => {
 
   useEffect(() => {
     loadMy();
-    console.log("List of bills:", list);
-  }, [list]);
+  }, []);
 
+  useEffect(() => {
+    if (!editInfo) return;
+    const t = setTimeout(() => setEditInfo(""), 5000);
+    return () => clearTimeout(t);
+  }, [editInfo]);
+  const startEditReimbursement = (r) => {
+    setEditingReimbId(r.id);
+    setTitle(r.title || "");
+    setDescription(r.description || "");
+    setBills(
+      (r.bills || []).map((b) => ({
+        fileUrl: b.fileUrl,
+        amount: String(b.amount ?? ""),
+        note: b.note || "",
+      }))
+    );
+    setEditInfo("You can update your reimbursement here");
+    document.getElementById("reimbursementFormCard")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+  
   /* ======================================================
          UPLOAD BILL FILES
   ====================================================== */
@@ -103,6 +128,8 @@ const loadMy = async () => {
     await api.delete(`/reimbursement/me/${selectedId}`);
     setShowDelete(false);
     setSelectedId(null);
+    setEditingReimbId(null);
+    setEditInfo("");
     loadMy();
     showMsg("Request deleted", "success");
   };
@@ -114,24 +141,44 @@ const loadMy = async () => {
     if (!title.trim()) return showMsg("Title is required", "error");
     if (bills.length === 0) return showMsg("Upload at least 1 bill", "error");
 
-    const invalidBill = bills.find((b) => !b.fileUrl || !b.amount);
+    const invalidBill = bills.find(
+      (b) =>
+        !b.fileUrl ||
+        !b.amount ||
+        isNaN(Number(b.amount)) ||
+        Number(b.amount) <= 0
+    );
+    
     if (invalidBill) return showMsg("Each bill must have amount", "error");
 
     try {
       setSubmitting(true);
-      setList([]);
-      await api.post("/reimbursement/create", {
-        title,
-        description,
-        bills,
-      });
-
-      setTitle("");
-      setDescription("");
-      setBills([]);
-
-      loadMy();
-      showMsg("Reimbursement submitted!", "success");
+      if (editingReimbId) {
+        await api.put(`/reimbursement/me/${editingReimbId}`, {
+          title,
+          description,
+          bills,
+        });
+        setEditingReimbId(null);
+        setEditInfo("");
+        setTitle("");
+        setDescription("");
+        setBills([]);
+        showMsg("Reimbursement updated!", "success");
+      } else {
+        await api.post("/reimbursement/create", {
+          title,
+          description,
+          bills,
+        });
+        setTitle("");
+        setDescription("");
+        setBills([]);
+        showMsg("Reimbursement submitted!", "success");
+      }
+      await loadMy();
+    } catch (err) {
+      showMsg(err?.response?.data?.message || "Request failed", "error");
     } finally {
       setSubmitting(false);
     }
@@ -142,11 +189,15 @@ const loadMy = async () => {
       {message && <Toast msg={message} type={toastType} />}
 
       {/* FORM CARD */}
-      <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border dark:border-gray-700">
+      <div id="reimbursementFormCard" className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow border dark:border-gray-700">
         <h2 className="text-2xl font-bold mb-5 dark:text-white">
           Submit Reimbursement
         </h2>
-
+        {editInfo && (
+          <div className="mb-4 text-sm text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+            {editInfo}
+          </div>
+        )}
         <div className="grid gap-4">
           <input
             type="text"
@@ -195,6 +246,7 @@ const loadMy = async () => {
                     <a
                       href={b.fileUrl}
                       target="_blank"
+                      rel="noopener noreferrer"
                       className="text-blue-600 underline break-all"
                     >
                       {b.fileUrl.split("/").pop()}
@@ -211,19 +263,33 @@ const loadMy = async () => {
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 mt-3">
-                    <input
-                      type="number"
-                      placeholder="Amount"
-                      className="px-2 py-1 border rounded dark:bg-gray-700 dark:text-white"
-                      value={b.amount}
-                      onChange={(e) =>
-                        setBills((prev) => {
-                          const copy = [...prev];
-                          copy[i].amount = e.target.value;
-                          return copy;
-                        })
-                      }
-                    />
+<input
+  type="text"
+  inputMode="numeric"
+  pattern="[0-9]*"
+  placeholder="Amount (Numeric Value)"
+  className="px-2 py-1 border rounded dark:bg-gray-700 dark:text-white"
+  value={b.amount}
+  onKeyDown={(e) => {
+    // block minus, e, +, .
+    if (["-", "+", "e", "E", "."].includes(e.key)) {
+      e.preventDefault();
+    }
+  }}
+  onChange={(e) => {
+    const val = e.target.value;
+
+    // allow only digits
+    if (/^\d*$/.test(val)) {
+      setBills((prev) => {
+        const copy = [...prev];
+        copy[i].amount = val;
+        return copy;
+      });
+    }
+  }}
+/>
+
 
                     <input
                       type="text"
@@ -244,12 +310,18 @@ const loadMy = async () => {
             </div>
           )}
 
-          <button
+            <button
             disabled={submitting}
             onClick={submitForm}
             className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow font-semibold"
           >
-            {submitting ? "Submitting..." : "Submit Request"}
+            {submitting
+              ? editingReimbId
+                ? "Updating..."
+                : "Submitting..."
+              : editingReimbId
+                ? "Update Request"
+                : "Submit Request"}
           </button>
         </div>
       </div>
@@ -265,31 +337,39 @@ const loadMy = async () => {
         ) : list.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400">You Will See Your Reimbursement Request After Submit....</p>
         ) : (
-          <div className="space-y-4 max-h-[450px] overflow-y-scroll pr-2 custom-scroll">
+          <div className="space-y-4 max-h-[450px] overflow-y-auto pr-2 custom-scroll">
             {list.map((r) => (
               <div
                 key={r.id}
                 className="relative p-4 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:border-gray-700"
-              >
-                {/* DELETE BUTTON FOR PENDING & REJECTED (EMPLOYEE ONLY) */}
-                {["PENDING", "REJECTED"].includes(r.status) && (
-                  <button
-                    onClick={() => {
-                      setSelectedId(r.id);
-                      setShowDelete(true);
-                    }}
-                    className="absolute top-3 right-3 text-red-600 hover:text-red-800 font-bold"
-                  >
-                    ✕
-                  </button>
-                )}
+              > 
+   {/* ACTIONS (top-right) */}
+{(r.status === "PENDING" || r.status === "REJECTED") && (
+  <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
+    {r.status === "PENDING" && (
+      <button
+        onClick={() => startEditReimbursement(r)}
+        className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600"
+        title="Edit"
+      >
+        <FiEdit className="text-xs" /> Edit
+      </button>
+    )}
 
-                <div className="flex justify-between pr-6">
-                  <h3 className="font-bold dark:text-white">{r.title}</h3>
-                  <span className={`font-bold ${statusColor[r.status]}`}>
-                    {r.status}
-                  </span>
-                </div>
+<button
+      onClick={() => {
+        setSelectedId(r.id);
+        setShowDelete(true);
+      }}
+      className="flex items-center gap-1 px-2 py-1 text-xs bg-red-500 text-white rounded-md hover:bg-red-600"
+      title="Delete"
+    >
+      <FiTrash2 className="text-xs" />Delete
+    </button>
+  </div>
+)}
+
+                <h3 className="font-bold dark:text-white">{r.title}</h3>
 
                 <p className="text-sm mt-1 dark:text-gray-300">
                   Total: ₹{r.totalAmount}
@@ -318,6 +398,13 @@ const loadMy = async () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                   {new Date(r.createdAt).toLocaleString()}
                 </p>
+                
+                <div className="flex">
+                  <span className={`font-bold ${statusColor[r.status]}`}>
+                    {r.status}
+                  </span>
+                </div>
+                
               </div>
             ))}
           </div>
