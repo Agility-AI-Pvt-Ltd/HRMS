@@ -267,6 +267,92 @@ res.json({ success: true, list: fixedList });
 }
 
 /* =====================================================
+   👤 EMPLOYEE — UPDATE (EDIT) PENDING ONLY
+===================================================== */
+export const updateReimbursement = async (req, res) => {
+  try {
+    const activeUser = await prisma.user.findFirst({
+      where: { id: req.user.id, isActive: true },
+    });
+    if (!activeUser) {
+      return res.status(403).json({
+        success: false,
+        message: "Account deactivated",
+      });
+    }
+
+    const id = req.params.id;
+    const { title, description, bills } = req.body;
+
+    const reimbursement = await prisma.reimbursement.findFirst({
+      where: {
+        id,
+        userId: req.user.id,
+        isEmployeeDeleted: false,
+        user: { isActive: true },
+      },
+      include: { bills: true },
+    });
+
+    if (!reimbursement) {
+      return res.status(404).json({
+        success: false,
+        message: "Reimbursement not found",
+      });
+    }
+    if (reimbursement.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "Only PENDING reimbursement can be edited",
+      });
+    }
+    if (!title?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Title is required",
+      });
+    }
+    if (!bills?.length) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one bill is required",
+      });
+    }
+
+    const totalAmount = calculateTotal(bills);
+    const billData = bills.map((b) => ({
+      reimbursementId: id,
+      fileUrl: b.fileUrl,
+      amount: Number(b.amount),
+      note: b.note || "",
+    }));
+
+    await prisma.$transaction([
+      prisma.reimbursement.update({
+        where: { id },
+        data: {
+          title: title.trim(),
+          description: description || "",
+          totalAmount,
+        },
+      }),
+      prisma.bill.deleteMany({ where: { reimbursementId: id } }),
+      prisma.bill.createMany({ data: billData }),
+    ]);
+
+    res.json({
+      success: true,
+      message: "Reimbursement updated successfully",
+    });
+  } catch (e) {
+    console.error("updateReimbursement ERROR:", e);
+    res.status(500).json({
+      success: false,
+      message: e.message || "Server error",
+    });
+  }
+};
+/* =====================================================
    👤 EMPLOYEE — SOFT DELETE
 ===================================================== */
 export const employeeDeleteReimbursement = async (req, res) => {

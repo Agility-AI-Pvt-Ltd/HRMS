@@ -4,6 +4,7 @@ import {
   uploadBills,
   uploadReimbursementFiles,
   createReimbursement,
+  updateReimbursement,
   myReimbursements,
   getAllReimbursements,
   getManagerReimbursements, 
@@ -79,6 +80,12 @@ router.get(
   "/export",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   exportReimbursements
+);
+
+router.put(
+  "/me/:id",
+  requireAuth(["AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  updateReimbursement
 );
 
 /* =====================================================

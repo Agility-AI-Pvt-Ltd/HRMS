@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import useAuthStore from "../stores/authstore";
-import { FiPlusCircle, FiCalendar, FiClock, FiEdit } from "react-icons/fi";
+import { FiPlusCircle, FiCalendar, FiClock, FiEdit, FiTrash2 } from "react-icons/fi";
 import EmployeeDropdown from "../components/EmployeeDropdown";
 import ConfirmDelPopup from "../components/ConfirmDelPopup";
 
@@ -107,7 +107,7 @@ function getUniqueLeaveDays(leaves) {
 //   return Object.values(dayMap).reduce((a, b) => a + b, 0);
 // }
 
-export default function Leaves() {
+export default function LeavesEmployee() {
   const [leaves, setLeaves] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [page, setPage] = useState(1);
@@ -164,7 +164,7 @@ export default function Leaves() {
   const [cancelMessage, setCancelMessage] = useState("");
 
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
 
   const currentYear = new Date().getFullYear();
   const yearStart = `${currentYear}-01-01`;
@@ -308,6 +308,26 @@ export default function Leaves() {
   useEffect(() => {
     load();
   }, []);
+
+  // Add this new function (apply ke upar/neeche kahin bhi component ke andar)
+const startEditLeave = (l) => {
+  setFormMode("LEAVE");
+  setEditingLeaveId(l.id);
+  setForm({
+    type: l.type || "CASUAL",
+    startDate: l.startDate?.slice(0, 10) || "",
+    endDate: l.endDate?.slice(0, 10) || "",
+    reason: l.reason || "",
+    responsiblePerson: l.responsiblePerson?.id || "",
+  });
+  setEditInfo("You can update your leave here");
+  setMsgType("success");
+  document.getElementById("leaveFormCard")?.scrollIntoView({
+  behavior: "smooth",
+  block: "start",
+});
+
+};
 
   const apply = async () => {
     const days = calcLeaveDays(form.startDate, form.endDate);
@@ -951,6 +971,30 @@ function LeaveItem({ l, isAdmin, onDelete, onEdit }) {
           ✕
         </button>
       )}
+{!isAdmin && l.status === "PENDING" && (
+  <div className="absolute top-4 right-4 flex items-center gap-1">
+    
+    {/* ✏️ EDIT BUTTON */}
+    <button
+      onClick={() => onEdit(l)}
+      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600"
+      title="Edit leave"
+    >
+      <FiEdit className="text-xs" /> Edit
+    </button>
+
+    {/* ❌ DELETE BUTTON */}
+    <button
+      onClick={() => onDelete(l.id)}
+      className="flex items-center gap-1 px-2 py-1 text-xs bg-red-500 text-white rounded-md hover:bg-red-600"
+      title="Delete leave"
+    >
+      <FiTrash2 className="text-xs" />Delete
+    </button>
+
+  </div>
+)}
+
       <div className="flex items-center gap-3">
         <span
           className={`px-4 py-1 rounded-full text-white text-sm font-medium ${l.status === "APPROVED" ? "bg-green-600" : l.status === "REJECTED" ? "bg-red-600" : "bg-yellow-500"}`}
