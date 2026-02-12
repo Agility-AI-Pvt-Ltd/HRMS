@@ -32,11 +32,22 @@ export default function AdminReimbursement() {
     }
   };
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+useEffect(() => {
+  loadAll();
 
-  /* ================= EXPORT ================= */
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      loadAll();
+    }
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  return () => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  };
+}, []);
+
 /* ================= EXPORT (FIXED) ================= */
 const exportData = async (format) => {
   try {

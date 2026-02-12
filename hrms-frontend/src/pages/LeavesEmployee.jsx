@@ -166,7 +166,7 @@ const [form, setForm] = useState(emptyLeaveForm);
   const [cancelMessage, setCancelMessage] = useState("");
 
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user.role === "ADMIN";
 
   const currentYear = new Date().getFullYear();
   const yearStart = `${currentYear}-01-01`;

@@ -6,6 +6,7 @@ import { sendRequestNotificationMail } from "../utils/sendMail.js";
 import { getAdminAndManagers } from "../utils/getApprovers.js";
 import { Parser } from "json2csv";
 import ExcelJS from "exceljs";
+import { emitToUsers } from "../socket/socketServer.js";
 
 /* =====================================================
    📦 STORAGE
@@ -335,11 +336,52 @@ export const updateReimbursement = async (req, res) => {
           title: title.trim(),
           description: description || "",
           totalAmount,
+
+          isAdminDeleted: false,
+          status: "PENDING",
+          rejectReason: null
         },
       }),
       prisma.bill.deleteMany({ where: { reimbursementId: id } }),
       prisma.bill.createMany({ data: billData }),
     ]);
+    
+    await prisma.reimbursementApproval.updateMany({
+  where: { reimbursementId: id },
+  data: {
+    status: "PENDING",
+    reason: null,
+    actedAt: null
+  }
+});
+const employee = await prisma.user.findUnique({
+  where:{ id: reimbursement.userId },
+  include:{
+    departments:{
+      include:{
+        department:{
+          include:{ managers:true }
+        }
+      }
+    }
+  }
+});
+
+if (employee) {
+  const managerIds = [
+    ...new Set(
+      employee.departments.flatMap(d =>
+        d.department.managers.map(m => m.id)
+      )
+    )
+  ];
+
+  emitToUsers(managerIds,"reimbursement_updated",{
+    reimbursementId:id,
+    title,
+    message:"Employee updated reimbursement request"
+  });
+}
 
     res.json({
       success: true,

@@ -528,17 +528,101 @@ export const updateLeave = async (req, res) => {
         message: "Half Day must be for a single date"
       });
     }
+const requestStart = startDate ? new Date(startDate) : leave.startDate;
+const requestEnd = endDate ? new Date(endDate) : leave.endDate;
 
-    const updated = await prisma.leave.update({
-      where: { id },
-      data,
+const overlappingLeaves = await prisma.leave.findMany({
+  where: {
+    userId: leave.userId,
+    id: { not: id },
+    status: { in: ["PENDING","APPROVED"] },
+    isAdminDeleted:false,
+    isEmployeeDeleted:false,
+    AND:[
+      { startDate:{ lte:requestEnd } },
+      { endDate:{ gte:requestStart } }
+    ]
+  }
+});
+
+if(overlappingLeaves.length){
+  return res.status(400).json({
+    success:false,
+    message:"Leave already exists for this duration"
+  });
+}
+
+const updated = await prisma.leave.update({
+  where: { id },
+  data: {
+    ...data,
+
+    // ⭐ IMPORTANT FIX
+    isAdminDeleted: false,
+    status: "PENDING",
+    rejectReason: null
+  },
+  include: {
+    user: true,
+    approver: true,
+    responsiblePerson: true
+  }
+});
+
+if (Object.keys(data).length > 0) {
+  await prisma.leaveApproval.updateMany({
+    where: { leaveId: id },
+    data: {
+      status: "PENDING",
+      reason: null,
+      actedAt: null
+    }
+  });
+}
+// 🔔 Notify managers again (IMPORTANT)
+const employee = await prisma.user.findUnique({
+  where: { id: leave.userId },
+  include: {
+    departments: {
       include: {
-        user: true,
-        approver: true,
-        responsiblePerson: true
+        department: {
+          include: { managers: true }
+        }
       }
-    });
+    }
+  }
+});
+if (!employee) {
+  return res.status(404).json({
+    success:false,
+    message:"Employee not found"
+  });
+}
+const managerIds = [
+  ...new Set(
+    employee.departments.flatMap(d =>
+      d.department.managers.map(m => m.id)
+    )
+  )
+];
 
+const notificationData = {
+  type: "leave_updated",
+  leaveId: updated.id,
+  employeeId: updated.userId,
+  employeeName: `${updated.user.firstName} ${updated.user.lastName || ""}`,
+  leaveType: getLeaveTypeName(updated.type),
+  startDate: updated.startDate,
+  endDate: updated.endDate,
+  reason: updated.reason || "",
+  message: "Leave request has been updated by employee",
+  title: "Leave Updated",
+  body: `${updated.user.firstName} updated their leave request`
+};
+
+if (Object.keys(data).length > 0 && managerIds.length > 0) {
+  emitToUsers(managerIds, "leave_updated", notificationData);
+}
     return res.json({
       success: true,
       message: "Leave updated successfully",
@@ -792,6 +876,9 @@ export const deleteLeave = async (req, res) => {
     const id = req.params.id;
 
     const leave = await prisma.leave.findUnique({ where: { id }, include: { user: true } });
+    
+    if (!leave)
+  return res.status(404).json({ success:false, message:"Leave not found" });
 
     if (!leave.user.isActive && req.user.role !== "ADMIN") {
   return res.status(403).json({
@@ -799,9 +886,6 @@ export const deleteLeave = async (req, res) => {
     message: "Account deactivated",
   });
 }
-
-    if (!leave)
-      return res.status(404).json({ success:false, message:"Leave not found" });
 
 // 👤 EMPLOYEE DELETE
 if (req.user.role !== "ADMIN") {
