@@ -50,8 +50,10 @@ export const managerLeaves = async (req, res) => {
 
     const leaves = await prisma.leave.findMany({
       where: {
+        isAdminDeleted: false,        // ✅ admin/employee delete hone par hide
+        isEmployeeDeleted: false,     // ✅ employee delete hone par bhi hide
         user: {
-          isActive: true, 
+          isActive: true,
           departments: {
             some: {
               departmentId: { in: deptIds },
@@ -63,9 +65,9 @@ export const managerLeaves = async (req, res) => {
         user: { select: { id:true, firstName:true,lastName:true } },
         approvals: {
           include: {
-            manager: { select: { firstName:true,lastName:true,email:true } }
-          }
-        }
+            manager: { select: { firstName:true,lastName:true,email:true } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });

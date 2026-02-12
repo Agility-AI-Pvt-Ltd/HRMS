@@ -803,27 +803,34 @@ export const deleteLeave = async (req, res) => {
     if (!leave)
       return res.status(404).json({ success:false, message:"Leave not found" });
 
-    // 👤 EMPLOYEE DELETE
-    if (req.user.role !== "ADMIN") {
-      if (leave.userId !== req.user.id)
-        return res.status(403).json({ success:false, message:"Access denied" });
+// 👤 EMPLOYEE DELETE
+if (req.user.role !== "ADMIN") {
+  if (leave.userId !== req.user.id)
+    return res.status(403).json({ success:false, message:"Access denied" });
 
-      if (leave.status !== "PENDING")
-        return res.status(400).json({
-          success:false,
-          message:"Only pending leaves can be deleted"
-        });
+  if (leave.status !== "PENDING")
+    return res.status(400).json({
+      success:false,
+      message:"Only pending leaves can be deleted"
+    });
 
-      await prisma.leave.update({
-        where: { id },
-        data: { isEmployeeDeleted: true }
-      });
-
-      return res.json({
-        success:true,
-        message:"Leave removed from your list"
-      });
+  // ✅ Employee delete → admin/manager lists se bhi hide
+  await prisma.leave.update({
+    where: { id },
+    data: { 
+      isEmployeeDeleted: true,
+      isAdminDeleted: true,
     }
+  });
+
+  // (optional) manager approval queues se bhi hataane ke liye:
+  // await prisma.leaveApproval.deleteMany({ where: { leaveId: id } });
+
+  return res.json({
+    success:true,
+    message:"Leave removed from all lists"
+  });
+}
 
     // 👑 ADMIN DELETE
     await prisma.leave.update({

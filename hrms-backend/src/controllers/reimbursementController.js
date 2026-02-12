@@ -186,10 +186,11 @@ approvers = approvers.filter(m => m.id !== req.user.id);
 
 // If after filter no manager remains → stop (DON'T fallback to admin)
 if(approvers.length === 0){
-  return res.status(400).json({
-    success:false,
-    message:"No manager available for approval"
+  const admins = await prisma.user.findMany({
+    where:{ role:"ADMIN", isActive:true }
   });
+
+  approvers = admins;
 }
 
 // Create approval entries
@@ -405,6 +406,7 @@ export const getManagerReimbursements = async (req, res) => {
     const reimbursements = await prisma.reimbursement.findMany({
       where: {
         isAdminDeleted: false, 
+        isEmployeeDeleted: false,   
         user: {
           isActive: true,  
           departments: {
@@ -443,7 +445,11 @@ export const getAllReimbursements = async (req, res) => {
       return res.status(403).json({ success: false, message: "Admin only" });
 
 const list = await prisma.reimbursement.findMany({
-  where: { isAdminDeleted: false,  user: { isActive: true }   },
+  where: {
+  isAdminDeleted: false,
+  isEmployeeDeleted: false,   // ⭐ ADD THIS
+  user: { isActive: true }
+},
   include: {
     user: true,
     bills: true,
@@ -691,7 +697,12 @@ const formatUrl = (url) => {
   return `${BASE_URL}/${url}`;
 };
 
-    const where = { isAdminDeleted: false ,  user: { isActive: true } };
+  const where = {
+  isAdminDeleted: false,
+  isEmployeeDeleted: false,  // ⭐ ADD
+  user: { isActive: true }
+};
+
 
     // Role based filter
     if (user.role !== "ADMIN") where.userId = user.id;

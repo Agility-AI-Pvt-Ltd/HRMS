@@ -141,13 +141,15 @@ export default function LeavesEmployee() {
     return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  const [form, setForm] = useState({
-    type: "CASUAL",
-    startDate: "",
-    endDate: "",
-    reason: "",
-    responsiblePerson: "",
-  });
+const emptyLeaveForm = {
+  type: "CASUAL",
+  startDate: "",
+  endDate: "",
+  reason: "",
+  responsiblePerson: "",
+};
+const [form, setForm] = useState(emptyLeaveForm);
+
 
   // const [showTodayPopup, setShowTodayPopup] = useState(false);
   const [formMode, setFormMode] = useState("LEAVE"); // LEAVE | CANCEL
@@ -200,12 +202,15 @@ export default function LeavesEmployee() {
           l.status === "APPROVED" &&
           l.type !== "WFH" &&
           l.type !== "UNPAID" &&
-          l.type !== "COMP_OFF",
+          l.type !== "COMP_OFF" &&
+          // 🔥 ADD YEAR FILTER
+          new Date(l.startDate) >= new Date(yearStart) &&
+          new Date(l.endDate) <= new Date(yearEnd),
       ),
       holidaysList,
       weekOff,
     );
-  }, [leaves, holidaysList, weekOff]);
+  }, [leaves, holidaysList, weekOff, yearStart, yearEnd]);
 
   // ⭐ Approved WFH unique days
   const approvedWFHDays = getUniqueLeaveDays(
@@ -227,10 +232,19 @@ export default function LeavesEmployee() {
       new Date(l.endDate) <= new Date(yearEnd),
   ).length;
 
+  // ⭐ Approved Unpaid Leaves (count)
+const approvedUnpaidCount = leaves.filter(
+  (l) =>
+    l.type?.toUpperCase() === "UNPAID" &&
+    l.status === "APPROVED" &&
+    new Date(l.startDate) >= new Date(yearStart) &&
+    new Date(l.endDate) <= new Date(yearEnd),
+).length;
+
   // ⭐ Remaining leaves
   const yearlyQuota = user?.stats?.yearlyQuota ?? 21;
 
-  const remainingLeaves = Math.max(yearlyQuota - approvedLeaveDays, 0);
+  const remainingLeaves = user?.stats?.remainingLeaves ?? Math.max(yearlyQuota - approvedLeaveDays, 0);
 
   useEffect(() => {
     const loadHolidays = async () => {
@@ -330,8 +344,23 @@ const startEditLeave = (l) => {
 };
 
   const apply = async () => {
+     
+    if (!form.startDate || !form.endDate) {
+    const t = "Start date and end date are required";
+    setApplyMessage(t);
+    setMsg(t);
+    setMsgType("error");
+    return;
+  }
     const days = calcLeaveDays(form.startDate, form.endDate);
-
+  
+    if (new Date(form.startDate) > new Date(form.endDate)) {
+    const t = "Start date cannot be after end date";
+    setApplyMessage(t);
+    setMsg(t);
+    setMsgType("error");
+    return;
+  }
     // 🚫 single-day leave check
     if (days === 1) {
       const dateCheck = checkHolidayOrWeekOff(
@@ -374,12 +403,29 @@ const startEditLeave = (l) => {
       return;
     }
     setApplyLoading(true);
+    setApplied(false);
     // ⬅ button text Applying...
     try {
-      const res = await api.post("/leaves", {
+      const payload = {
         ...form,
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : null,
+        endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
         responsiblePerson: form.responsiblePerson || null,
-      });
+      };
+
+    let res;
+       // ✏️ EDIT MODE
+    if (editingLeaveId) {
+      res = await api.put(`/leaves/${editingLeaveId}`, payload);
+      setApplyMessage("Leave updated successfully.");
+      setMsg("Leave updated successfully.");
+    }
+    // 🆕 CREATE MODE
+    else {
+      res = await api.post("/leaves", payload);
+      setApplyMessage("Your leave is successfully sent.");
+      setMsg("Your leave is successfully sent.");
+    }
 
       // ✅ UPDATE USER BALANCE WITHOUT REFRESH
       if (res.data.updatedUser) {
@@ -388,24 +434,21 @@ const startEditLeave = (l) => {
           ...res.data.updatedUser,
         });
       }
-      setApplied(true);
-      setApplyMessage("Your leave is successfully sent.");
-      setMsg("Your leave is successfully sent.");
       setMsgType("success");
+      setApplied(true);
+ 
+    // Refresh leaves
+    const r = await api.get("/leaves");
+    setLeaves(r.data.leaves || []); 
+
+     // Reset form & edit state
+    setEditingLeaveId(null);
+    setForm(emptyLeaveForm);
 
       setTimeout(() => {
         setApplied(false);
         setApplyMessage("");
       }, 2000);
-
-      setForm({
-        type: "CASUAL",
-        startDate: "",
-        endDate: "",
-        reason: "",
-        responsiblePerson: "",
-      });
-
       load();
     } catch (err) {
       const errorMsg = err.response?.data?.message || "Failed to apply leave";
@@ -417,35 +460,28 @@ const startEditLeave = (l) => {
     }
   };
 
-  const updateStatus = async (id, status) => {
-    try {
-      // ✅ OPTIMISTIC UPDATE (instant UI change)
-      setLeaves((prev) =>
-        prev.map((l) =>
-          l.id === id
-            ? {
-                ...l,
-                status: status === "APPROVED" ? "APPROVED" : "REJECTED",
-              }
-            : l,
-        ),
-      );
+const updateStatus = async (id, status) => {
+  try {
+    setLeaves((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { ...l, status: status === "APPROVED" ? "APPROVED" : "REJECTED" }
+          : l
+      )
+    );
 
-      // Then call backend
-      await api.patch(`/leaves/${id}/approve`, { action: status });
+    await api.patch(`/leaves/${id}/approve`, { action: status });
 
-      setMsg(`Leave ${status.toLowerCase()}`);
-      setMsgType("success");
+    setMsg(`Leave ${status.toLowerCase()}`);
+    setMsgType("success");
 
-      // ✅ FINAL REFRESH (to get any backend-calculated fields)
-      load();
-    } catch (err) {
-      // ❌ Revert on error
-      setMsg(err?.response?.data?.message || "Action failed");
-      setMsgType("error");
-      load(); // reload original data
-    }
-  };
+    load();
+  } catch (err) {
+    setMsg(err?.response?.data?.message || "Action failed");
+    setMsgType("error");
+    load();
+  }
+};
 
   return (
     <div className="space-y-10">
@@ -464,22 +500,29 @@ const startEditLeave = (l) => {
       <PageTitle title="Leaves" sub="Manage your leaves & WFH" />
 
       {!isAdmin && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard
-            icon={<FiClock className="text-green-500" />}
-            title="Approved Leave Days"
-            value={approvedLeaveDays}
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard
+  icon={<FiClock className="text-green-500" />}
+  title="Total Approved Leave"
+  subtitle="(Count Paid Leaves and HalfDays not CompOff and Unpaid Leaves)"
+  value={approvedLeaveDays}
+/>
           <StatCard
             icon={<FiClock className="text-blue-500" />}
             title="Approved WFH Days"
             value={approvedWFHDays}
           />
+<StatCard
+  icon={<FiClock className="text-green-500" />}
+  title="Approved HalfDay Count"
+  subtitle="(0.5 Leave deduct as per count)"
+  value={approvedHalfDay}
+/>
           <StatCard
-            icon={<FiClock className="text-green-500" />}
-            title="Half Day Approved"
-            value={approvedHalfDay}
-          />
+  icon={<FiClock className="text-gray-500" />}
+  title="Approved Unpaid Leaves"
+  value={approvedUnpaidCount}
+/>
           <StatCard
             icon={<FiClock className="text-teal-500" />}
             title="Comp-Off Balance"
@@ -522,7 +565,11 @@ const startEditLeave = (l) => {
               </button>
             </div>
           </div>
-
+          {editInfo && formMode === "LEAVE" && (
+    <div className="mb-4 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+      {editInfo}
+    </div>
+  )}
           {formMode === "LEAVE" ? (
             <>
               {/* Apply Leave form */}
@@ -538,7 +585,7 @@ const startEditLeave = (l) => {
                   >
                     <option value="CASUAL">Casual Leave</option>
                     <option value="SICK">Sick Leave</option>
-                    <option value="PAID">Paid Leave</option>
+                    {/* <option value="PAID">Paid Leave</option> */}
                     <option value="UNPAID">Unpaid Leave</option>
                     <option value="COMP_OFF">Comp Off</option>
                     <option value="HALF_DAY">Half Day</option>
@@ -776,9 +823,14 @@ const startEditLeave = (l) => {
               {formMode === "LEAVE"
                 ? applied
                   ? "Applied ✔"
-                  : applyLoading
-                    ? "Applying..."
-                    : "Apply"
+                 : applyLoading
+                  ? editingLeaveId
+                  ? "Updating..."
+                  : "Applying..."
+                  : editingLeaveId
+                  ? "Update Leave"
+                  : "Apply"
+
                 : cancelSubmitted
                   ? "Submitted ✔"
                   : cancelSubmitLoading
@@ -893,7 +945,7 @@ const startEditLeave = (l) => {
   );
 }
 
-function LeaveItem({ l, isAdmin, onDelete, onEdit }) {
+function LeaveItem({ l, isAdmin, onDelete, onEdit, updateStatus }) {
   const getDays = () => {
     if (!l?.startDate || !l?.endDate) return 0;
     const s = new Date(l.startDate);
@@ -960,17 +1012,6 @@ function LeaveItem({ l, isAdmin, onDelete, onEdit }) {
           </div>
         )}
       </div>
-      {!isAdmin && l.status === "PENDING" && (
-        <button
-          onClick={() => onDelete(l.id)}
-          className="absolute top-4 right-4 text-red-500 hover:text-red-700 
-           font-bold text-lg bg-white dark:bg-gray-900 
-           rounded-full w-7 h-7 flex items-center justify-center shadow"
-          title="Delete leave"
-        >
-          ✕
-        </button>
-      )}
 {!isAdmin && l.status === "PENDING" && (
   <div className="absolute top-4 right-4 flex items-center gap-1">
     
@@ -1017,7 +1058,13 @@ function PageTitle({ title, sub }) {
 
 function GlassCard({ children, className = "", ...rest }) {
   return (
-    <div className="p-6 rounded-2xl bg-white/60 dark:bg-gray-800/40 shadow border border-gray-200 dark:border-gray-700 backdrop-blur-lg">
+    <div
+      {...rest}  // yahan se id, onClick, etc. sab div par aa jayenge
+      className={
+        "p-6 rounded-2xl bg-white/60 dark:bg-gray-800/40 shadow border border-gray-200 dark:border-gray-700 backdrop-blur-lg " +
+        className
+      }
+    >
       {children}
     </div>
   );
@@ -1031,9 +1078,7 @@ function StatCard({ icon, title, subtitle, value }) {
         <div className="text-xl font-bold">{value}</div>
         <div className="text-sm text-gray-500">{title}</div>
         {subtitle && (
-          <div className="text-[10px] text-gray-400 leading-tight mt-0.5">
-            {subtitle}
-          </div>
+          <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{subtitle}</div>
         )}
       </div>
     </div>
