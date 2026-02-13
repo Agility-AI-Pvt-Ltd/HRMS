@@ -607,7 +607,7 @@ if (!reimbursement.user.isActive) {
     if (reimbursement.userId === actorId) {
       return res.status(403).json({
         success: false,
-        message: "You cannot approve your own reimbursement",
+        message: "You cannot approve/reject your own reimbursement",
       });
     }
 

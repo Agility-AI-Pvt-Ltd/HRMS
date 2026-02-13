@@ -675,7 +675,7 @@ export const approveLeave = async (req, res) => {
 
     // ❌ Self approval block
     if (leave.userId === managerId)
-      return res.status(403).json({ success:false, message:"You cannot approve your own leave" });
+      return res.status(403).json({ success:false, message:"You cannot approve/reject your own leave" });
 
     // 🔐 Permission check
     let allowed = false;
