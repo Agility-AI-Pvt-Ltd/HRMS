@@ -4,8 +4,8 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import "express-async-errors";
-import path from "path"; 
-const __dirname = path.resolve(); 
+import path from "path";
+const __dirname = path.resolve();
 // Routes
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -19,9 +19,9 @@ import reimbursementRoutes from "./routes/reimbursementRoutes.js";
 import managerRoutes from "./routes/managerRoutes.js";
 import resignationRoutes from "./routes/resignationRoutes.js";
 import weeklyOffRoutes from "./routes/weeklyOffRoutes.js";
-import compOffRoutes from "./routes/compOffRoutes.js";   
-import holidayRoutes from "./routes/holidayRoutes.js"; 
-import attendanceCorrectionRoutes from "./routes/attendanceCorrectionRoutes.js"; 
+import compOffRoutes from "./routes/compOffRoutes.js";
+import holidayRoutes from "./routes/holidayRoutes.js";
+import attendanceCorrectionRoutes from "./routes/attendanceCorrectionRoutes.js";
 import freelanceFacultyRoutes from "./routes/facultyManagerRoute.js"
 
 const app = express();
@@ -67,19 +67,33 @@ app.use(
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Content-Disposition"],
+    optionsSuccessStatus: 200, // For legacy browsers
   })
 );
+
+// Explicit OPTIONS handler for preflight requests
+app.options("*", cors());
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 /* ============================================================
-   STATIC FILE SERVING FOR PDF SLIPS
+   STATIC FILE SERVING FOR PDF SLIPS & REIMBURSEMENT BILLS
 ============================================================ */
+// Add CORS headers to static file responses
+app.use("/uploads", (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+});
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-// Now PDF slips can be accessed via:
+// Now PDF slips and reimbursement bills can be accessed via:
 // http://localhost:4000/uploads/slips/<filename>.pdf
+// http://localhost:4000/uploads/reimbursements/<filename>
 
 /* ============================================================
    API ROUTES
@@ -96,10 +110,10 @@ app.use("/api/reimbursement", reimbursementRoutes);
 app.use("/api/manager", managerRoutes);
 app.use("/api/resignation", resignationRoutes);
 app.use("/api/weekly-off", weeklyOffRoutes);
-app.use("/api/comp-off", compOffRoutes); 
+app.use("/api/comp-off", compOffRoutes);
 app.use("/api/holidays", holidayRoutes);
-app.use( "/api/attendance-corrections", attendanceCorrectionRoutes);
-app.use("/api/freelance",freelanceFacultyRoutes);
+app.use("/api/attendance-corrections", attendanceCorrectionRoutes);
+app.use("/api/freelance", freelanceFacultyRoutes);
 
 
 /* ============================================================
@@ -114,6 +128,13 @@ app.get("/api/health", (req, res) => {
 ============================================================ */
 app.use((err, req, res, next) => {
   console.error("❌ GLOBAL ERROR:", err);
+
+  // Ensure CORS headers are present even in error responses
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
 
   return res.status(err.status || 500).json({
     success: false,
