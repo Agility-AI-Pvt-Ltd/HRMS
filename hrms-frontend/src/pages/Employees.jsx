@@ -27,7 +27,7 @@ export default function Employees() {
 
   // Error
   const [errorMsg, setErrorMsg] = useState("");
-  const [saveLoading, setSaveLoading] = useState(false);      // for create/update
+  const [saveLoading, setSaveLoading] = useState(false); // for create/update
   const [deleteLoadingId, setDeleteLoadingId] = useState(null); // unique delete row wait
 
   const [toggleLoadingId, setToggleLoadingId] = useState(null);
@@ -89,7 +89,7 @@ export default function Employees() {
       email: u.email,
       role: u.role,
       departmentId: u.departmentId || "",
-      departmentIds: u.departments?.map(d => d.department.id) || [],
+      departmentIds: u.departments?.map((d) => d.department.id) || [],
       password: "",
     });
     setErrorMsg("");
@@ -97,33 +97,36 @@ export default function Employees() {
   };
 
   /* Save user */
-const submit = async (e) => {
-  e.preventDefault();
-  setErrorMsg("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
     // Frontend validation
-  if (!editUser && !form.password.trim()) {
-    setErrorMsg("Password is required for new employee");
-    return;
-  }
-  setSaveLoading(true);     // 🔥 start loader
+    if (!editUser && !form.password.trim()) {
+      setErrorMsg("Password is required for new employee");
+      return;
+    }
+    setSaveLoading(true); // 🔥 start loader
 
-  try {
-    await api[editUser ? "put" : "post"](
-      editUser ? `/users/${editUser.id}` : "/users",
-      form
-    );
+    try {
+      await api[editUser ? "put" : "post"](
+        editUser ? `/users/${editUser.id}` : "/users",
+        form,
+      );
 
-    setMsg(editUser ? "Employee updated successfully" : "Employee created successfully");
-    setMsgType("success");
-    setModalOpen(false);
-    load();
-
-  } catch (err) {
-    setErrorMsg(err.response?.data?.message || "Error saving user");
-  } finally {
-    setSaveLoading(false);    // 🔥 stop loader
-  }
-};
+      setMsg(
+        editUser
+          ? "Employee updated successfully"
+          : "Employee created successfully",
+      );
+      setMsgType("success");
+      setModalOpen(false);
+      load();
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || "Error saving user");
+    } finally {
+      setSaveLoading(false); // 🔥 stop loader
+    }
+  };
 
   /* Ask for delete */
   const askDelete = (id) => {
@@ -133,48 +136,46 @@ const submit = async (e) => {
 
   /* Delete after confirm */
   const handleDelete = async () => {
-  try {
-    setDeleteLoadingId(deleteId);   // start loader
+    try {
+      setDeleteLoadingId(deleteId); // start loader
 
-    await api.delete(`/users/${deleteId}`);
+      await api.delete(`/users/${deleteId}`);
 
-    setMsg("Employee deleted successfully");
-    setMsgType("success");
-    setConfirmOpen(false);
-    setDeleteId(null);
-    load();
+      setMsg("Employee deleted successfully");
+      setMsgType("success");
+      setConfirmOpen(false);
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      setMsg(err.response?.data?.message || "Error deleting");
+      setMsgType("error");
+    } finally {
+      setDeleteLoadingId(null); // stop loader
+    }
+  };
 
-  } catch (err) {
-    setMsg(err.response?.data?.message || "Error deleting");
-    setMsgType("error");
-  } finally {
-    setDeleteLoadingId(null);       // stop loader
-  }
-};
+  const handleToggleStatus = async (id) => {
+    try {
+      setToggleLoadingId(id);
 
-const handleToggleStatus = async (id) => {
-  try {
-    setToggleLoadingId(id);
+      await api.patch(`/users/${id}/toggle-status`);
 
-    await api.patch(`/users/${id}/toggle-status`);
-
-    setMsg("User status updated");
-    setMsgType("success");
-    load();
-  } catch (err) {
-    setMsg(err.response?.data?.message || "Error updating status");
-    setMsgType("error");
-  } finally {
-    setToggleLoadingId(null);
-  }
-};
+      setMsg("User status updated");
+      setMsgType("success");
+      load();
+    } catch (err) {
+      setMsg(err.response?.data?.message || "Error updating status");
+      setMsgType("error");
+    } finally {
+      setToggleLoadingId(null);
+    }
+  };
 
   /* =======================================================
          UI
   ======================================================== */
   return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-0">
-
       {msg && (
         <div
           className={
@@ -207,34 +208,34 @@ const handleToggleStatus = async (id) => {
         {loading ? (
           <div className="text-center py-6">Loading...</div>
         ) : (
-<EmployeesTable
-  users={users}
-  askDelete={askDelete}
-  openEdit={openEdit}
-  me={me}
-  departments={departments}
-  navigate={navigate}
-  deleteLoadingId={deleteLoadingId}
-  toggleLoadingId={toggleLoadingId}
-  handleToggleStatus={handleToggleStatus}
-/>
+          <EmployeesTable
+            users={users}
+            askDelete={askDelete}
+            openEdit={openEdit}
+            me={me}
+            departments={departments}
+            navigate={navigate}
+            deleteLoadingId={deleteLoadingId}
+            toggleLoadingId={toggleLoadingId}
+            handleToggleStatus={handleToggleStatus}
+          />
         )}
       </GlassCard>
 
       {/* Add/Edit Modal */}
       {modalOpen && (
         <Modal>
-        <UserForm
-  form={form}
-  setForm={setForm}
-  submit={submit}
-  close={() => setModalOpen(false)}
-  editUser={editUser}
-  errorMsg={errorMsg}
-  me={me}
-  departments={departments}
-  saveLoading={saveLoading}     // 🔥 required
-/>
+          <UserForm
+            form={form}
+            setForm={setForm}
+            submit={submit}
+            close={() => setModalOpen(false)}
+            editUser={editUser}
+            errorMsg={errorMsg}
+            me={me}
+            departments={departments}
+            saveLoading={saveLoading} // 🔥 required
+          />
         </Modal>
       )}
 
@@ -242,7 +243,9 @@ const handleToggleStatus = async (id) => {
       {confirmOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-xl shadow-lg max-w-sm w-full">
-            <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Confirm Delete</h3>
+            <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+              Confirm Delete
+            </h3>
 
             <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 mb-4 sm:mb-6">
               Are you sure you want to delete this employee?
@@ -256,19 +259,17 @@ const handleToggleStatus = async (id) => {
                 No
               </button>
 
-           <button
-  onClick={handleDelete}
-  disabled={deleteLoadingId === deleteId}
-  className="px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg text-sm sm:text-base disabled:opacity-50"
->
-  {deleteLoadingId === deleteId ? "Deleting..." : "Yes, Delete"}
-</button>
-
+              <button
+                onClick={handleDelete}
+                disabled={deleteLoadingId === deleteId}
+                className="px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg text-sm sm:text-base disabled:opacity-50"
+              >
+                {deleteLoadingId === deleteId ? "Deleting..." : "Yes, Delete"}
+              </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
@@ -280,7 +281,9 @@ function PageTitle({ title, sub }) {
   return (
     <div className="mb-3 sm:mb-4">
       <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
-      <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">{sub}</p>
+      <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+        {sub}
+      </p>
     </div>
   );
 }
@@ -303,7 +306,16 @@ function Modal({ children }) {
 }
 
 function EmployeesTable({
-  users, askDelete, openEdit, me, departments, navigate, deleteLoadingId, toggleLoadingId, handleToggleStatus}) {
+  users,
+  askDelete,
+  openEdit,
+  me,
+  departments,
+  navigate,
+  deleteLoadingId,
+  toggleLoadingId,
+  handleToggleStatus,
+}) {
   return (
     <>
       {/* ===== MOBILE CARD VIEW (xs, sm) ===== */}
@@ -331,9 +343,9 @@ function EmployeesTable({
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <strong>Department:</strong>{" "}
               {u.departments?.length
-  ? u.departments.map(d => d.department.name).join(", ")
-  : departments.find(dep => dep.id === u.departmentId)?.name || "-"}
-
+                ? u.departments.map((d) => d.department.name).join(", ")
+                : departments.find((dep) => dep.id === u.departmentId)?.name ||
+                  "-"}
             </p>
 
             {me?.role === "ADMIN" && (
@@ -347,39 +359,34 @@ function EmployeesTable({
                 >
                   <FiEdit size={16} />
                 </button>
-{/* Toggle Active / Inactive */}
-<button
-  onClick={(e) => {
-    e.stopPropagation();
-    handleToggleStatus(u.id);
-  }}
-  disabled={toggleLoadingId === u.id}
-  className={`p-2 rounded-lg text-white ${
-    u.isActive
-      ? "bg-yellow-500"
-      : "bg-green-600"
-  } disabled:opacity-50`}
->
-  {toggleLoadingId === u.id
-    ? "..."
-    : u.isActive
-    ? "Off"
-    : "On"}
-</button>
+                {/* Toggle Active / Inactive */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleStatus(u.id);
+                  }}
+                  disabled={toggleLoadingId === u.id}
+                  className={`p-2 rounded-lg text-white ${
+                    u.isActive ? "bg-yellow-500" : "bg-green-600"
+                  } disabled:opacity-50`}
+                >
+                  {toggleLoadingId === u.id ? "..." : u.isActive ? "Off" : "On"}
+                </button>
 
-              <button
-  onClick={(e) => {
-    e.stopPropagation();
-    askDelete(u.id);
-  }}
-  disabled={deleteLoadingId === u.id}
-  className={`p-2 rounded-lg text-white ${
-    deleteLoadingId === u.id ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
-  } disabled:opacity-50`}
->
-  {deleteLoadingId === u.id ? "..." : <FiTrash2 size={16} />}
-</button>
-
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    askDelete(u.id);
+                  }}
+                  disabled={deleteLoadingId === u.id}
+                  className={`p-2 rounded-lg text-white ${
+                    deleteLoadingId === u.id
+                      ? "bg-gray-400"
+                      : "bg-red-500 hover:bg-red-600"
+                  } disabled:opacity-50`}
+                >
+                  {deleteLoadingId === u.id ? "..." : <FiTrash2 size={16} />}
+                </button>
               </div>
             )}
           </div>
@@ -388,41 +395,55 @@ function EmployeesTable({
 
       {/* ===== DESKTOP TABLE VIEW ===== */}
       <div className="hidden sm:block overflow-x-auto w-full rounded-xl">
-        <table className="w-full text-left border-collapse min-w-[700px]">
-<thead>
-  <tr className="border-b dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-    <th className="p-3 text-sm">Name</th>
-    <th className="p-3 text-sm">Email</th>
-    <th className="p-3 text-sm">Role</th>
-    <th className="p-3 text-sm">Department</th>
-    <th className="p-3 text-sm text-center">Actions</th>
-  </tr>
-</thead>
+        <table className="w-flex table-fixed text-left border-collapse min-w-[700px]">
+          <thead>
+            <tr className="border-b dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+              <th className="p-3 text-sm">Name</th>
+              <th className="p-3 text-sm">Email</th>
+              <th className="p-3 text-sm">Role</th>
+              <th className="p-3 text-sm">Department</th>
+              <th className="p-3 text-sm text-center">Actions</th>
+            </tr>
+          </thead>
 
           <tbody>
             {users.map((u) => (
-<tr
-  key={u.id}
-  onClick={() => navigate(`/employees/${u.id}`)}
-  className={`border-b dark:border-gray-800 cursor-pointer transition
-    ${!u.isActive
-      ? "opacity-50"
-      : "hover:bg-indigo-100 dark:hover:bg-gray-700"}`}
->
-
+              <tr
+                key={u.id}
+                onClick={() => navigate(`/employees/${u.id}`)}
+                className={`border-b dark:border-gray-800 cursor-pointer transition
+              ${
+                !u.isActive
+                  ? "opacity-50"
+                  : "hover:bg-indigo-100 dark:hover:bg-gray-700"
+              }`}
+              >
                 <td className="p-3 text-sm whitespace-nowrap">
                   {u.firstName} {u.lastName}
                 </td>
 
-                <td className="p-3 text-sm whitespace-nowrap">{u.email}</td>
+                <td
+                  className="p-3 text-sm max-w-[220px] truncate"
+                  title={u.email}
+                >
+                  {u.email}
+                </td>
 
-                <td className="p-3 text-sm whitespace-nowrap">{u.role}</td>
+                <td className="p-3 text-sm ">{u.role}</td>
 
-                <td className="p-3 text-sm whitespace-nowrap">
-                {u.departments?.length
-  ? u.departments.map(d => d.department.name).join(", ")
-  : departments.find(dep => dep.id === u.departmentId)?.name || "-"}
-
+                <td
+                  className="p-3 text-sm max-w-[220px] truncate"
+                  title={
+                    u.departments?.length
+                      ? u.departments.map((d) => d.department.name).join(", ")
+                      : departments.find((dep) => dep.id === u.departmentId)
+                          ?.name || "-"
+                  }
+                >
+                  {u.departments?.length
+                    ? u.departments.map((d) => d.department.name).join(", ")
+                    : departments.find((dep) => dep.id === u.departmentId)
+                        ?.name || "-"}
                 </td>
 
                 {me?.role === "ADMIN" && (
@@ -439,39 +460,44 @@ function EmployeesTable({
                         <FiEdit size={16} />
                       </button>
                       {/* Toggle Active / Inactive */}
-<button
-  onClick={(e) => {
-    e.stopPropagation();
-    handleToggleStatus(u.id);
-  }}
-  disabled={toggleLoadingId === u.id}
-  className={`p-2 rounded-lg text-white ${
-    u.isActive
-      ? "bg-yellow-500 hover:bg-yellow-600"
-      : "bg-gray-600 hover:bg-gray-700"
-  } disabled:opacity-50`}
->
-  {toggleLoadingId === u.id
-    ? "..."
-    : u.isActive
-    ? "Click For Deactivate"
-    : "Click For Activate"}
-</button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleStatus(u.id);
+                        }}
+                        disabled={toggleLoadingId === u.id}
+                        className={`p-2 rounded-lg text-white ${
+                          u.isActive
+                            ? "bg-yellow-500 hover:bg-yellow-600"
+                            : "bg-gray-600 hover:bg-gray-700"
+                        } disabled:opacity-50`}
+                      >
+                        {toggleLoadingId === u.id
+                          ? "..."
+                          : u.isActive
+                            ? "Click For Deactivate"
+                            : "Click For Activate"}
+                      </button>
 
                       {/* Delete */}
-                <button
-  onClick={(e) => {
-    e.stopPropagation();
-    askDelete(u.id);
-  }}
-  disabled={deleteLoadingId === u.id}
-  className={`p-2 rounded-lg text-white ${
-    deleteLoadingId === u.id ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
-  } disabled:opacity-50`}
->
-  {deleteLoadingId === u.id ? "..." : <FiTrash2 size={16} />}
-</button>
-
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          askDelete(u.id);
+                        }}
+                        disabled={deleteLoadingId === u.id}
+                        className={`p-2 rounded-lg text-white ${
+                          deleteLoadingId === u.id
+                            ? "bg-gray-400"
+                            : "bg-red-500 hover:bg-red-600"
+                        } disabled:opacity-50`}
+                      >
+                        {deleteLoadingId === u.id ? (
+                          "..."
+                        ) : (
+                          <FiTrash2 size={16} />
+                        )}
+                      </button>
                     </div>
                   </td>
                 )}
@@ -484,7 +510,17 @@ function EmployeesTable({
   );
 }
 
-function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, departments, saveLoading }){
+function UserForm({
+  form,
+  setForm,
+  submit,
+  close,
+  editUser,
+  errorMsg,
+  me,
+  departments,
+  saveLoading,
+}) {
   const [showPassword, setShowPassword] = useState(false);
   const update = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -536,67 +572,69 @@ function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, depart
           </select>
         )}
 
-{form.role !== "ADMIN" && (
-  <div className="space-y-2">
-    <label className="text-sm text-gray-600 dark:text-gray-300">
-      Departments
-    </label>
+        {form.role !== "ADMIN" && (
+          <div className="space-y-2">
+            <label className="text-sm text-gray-600 dark:text-gray-300">
+              Departments
+            </label>
 
-    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-800">
-      {departments.map((dep) => {
-        const checked = form.departmentIds.includes(dep.id);
+            <div className="border rounded-lg p-3 max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-800">
+              {departments.map((dep) => {
+                const checked = form.departmentIds.includes(dep.id);
 
-        return (
-          <label
-            key={dep.id}
-            className="flex items-center gap-2 text-sm cursor-pointer py-1"
-          >
+                return (
+                  <label
+                    key={dep.id}
+                    className="flex items-center gap-2 text-sm cursor-pointer py-1"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        setForm((prev) => ({
+                          ...prev,
+                          departmentIds: e.target.checked
+                            ? [...prev.departmentIds, dep.id]
+                            : prev.departmentIds.filter((id) => id !== dep.id),
+                        }));
+                      }}
+                      className="accent-indigo-600"
+                    />
+
+                    <span>{dep.name}</span>
+                  </label>
+                );
+              })}
+
+              {departments.length === 0 && (
+                <p className="text-xs text-gray-500">
+                  No departments available
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {me?.role === "ADMIN" && (
+          <div className="relative">
             <input
-              type="checkbox"
-              checked={checked}
-              onChange={(e) => {
-                setForm((prev) => ({
-                  ...prev,
-                  departmentIds: e.target.checked
-                    ? [...prev.departmentIds, dep.id]
-                    : prev.departmentIds.filter((id) => id !== dep.id),
-                }));
-              }}
-              className="accent-indigo-600"
+              className="input pr-10"
+              type={showPassword ? "text" : "password"}
+              placeholder={editUser ? "New password (optional)" : "Password"}
+              value={form.password}
+              onChange={(e) => update("password", e.target.value)}
+              required={!editUser} // 🔥 ADD MODE → required, EDIT MODE → optional
             />
 
-            <span>{dep.name}</span>
-          </label>
-        );
-      })}
-
-      {departments.length === 0 && (
-        <p className="text-xs text-gray-500">No departments available</p>
-      )}
-    </div>
-  </div>
-)}
-
-{me?.role === "ADMIN" && (
-  <div className="relative">
-    <input
-      className="input pr-10"
-      type={showPassword ? "text" : "password"}
-      placeholder={editUser ? "New password (optional)" : "Password"}
-      value={form.password}
-      onChange={(e) => update("password", e.target.value)}
-      required={!editUser}   // 🔥 ADD MODE → required, EDIT MODE → optional
-    />
-
-    <button
-      type="button"
-      onClick={() => setShowPassword((p) => !p)}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-300"
-    >
-      {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
-    </button>
-  </div>
-)}
+            <button
+              type="button"
+              onClick={() => setShowPassword((p) => !p)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-300"
+            >
+              {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
+            </button>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 sm:gap-3 pt-3">
           <button
@@ -607,13 +645,12 @@ function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, depart
             Cancel
           </button>
 
-   <button
-  disabled={saveLoading}
-  className="px-3 sm:px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm sm:text-base disabled:opacity-50"
->
-  {saveLoading ? "Please wait..." : editUser ? "Update" : "Create"}
-</button>
-
+          <button
+            disabled={saveLoading}
+            className="px-3 sm:px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm sm:text-base disabled:opacity-50"
+          >
+            {saveLoading ? "Please wait..." : editUser ? "Update" : "Create"}
+          </button>
         </div>
       </form>
 
