@@ -376,144 +376,152 @@ export default function FreelanceFacultyManagerView() {
 
       {showAssignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Assign Freelance Faculty to Manager
-            </h2>
-            <form onSubmit={handleAssignSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Faculty Name
-                </label>
-                <input
-                  type="text"
-                  value={assignName}
-                  onChange={(e) => setAssignName(e.target.value)}
-                  placeholder="Enter faculty name"
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
-                  required
-                />
-              </div>
+          <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-900">
+            <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Assign Freelance Faculty to Manager
+              </h2>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={assignEmail}
-                  onChange={(e) => setAssignEmail(e.target.value)}
-                  placeholder="e.g. faculty@example.com"
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
-                 
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  value={assignPhone}
-                  onChange={(e) => setAssignPhone(e.target.value)}
-                  placeholder="e.g. 9876543210"
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
-                  
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Joining Date
-                </label>
-                <input
-                  type="date"
-                  value={assignJoiningDate}
-                  onChange={(e) => setAssignJoiningDate(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Subjects
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Select one or more subjects.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {SUBJECT_OPTIONS.map((subject) => {
-                    const selected = assignSubjects.includes(subject);
-                    return (
-                      <button
-                        key={subject}
-                        type="button"
-                        onClick={() => toggleSubject(subject)}
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                          selected
-                            ? "bg-indigo-600 text-white ring-indigo-600"
-                            : "bg-gray-50 text-gray-700 ring-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
-                        }`}
-                      >
-                        {subject}
-                      </button>
-                    );
-                  })}
+            <form
+              onSubmit={handleAssignSubmit}
+              className="flex max-h-[90vh] flex-1 flex-col overflow-hidden"
+            >
+              <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Faculty Name
+                  </label>
+                  <input
+                    type="text"
+                    value={assignName}
+                    onChange={(e) => setAssignName(e.target.value)}
+                    placeholder="Enter faculty name"
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                    required
+                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Preferred Days of Week
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Select one or more days.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {DAY_OPTIONS.map((day) => {
-                    const selected = assignDays.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => toggleDay(day)}
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                          selected
-                            ? "bg-emerald-600 text-white ring-emerald-600"
-                            : "bg-gray-50 text-gray-700 ring-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
-                        }`}
-                      >
-                        {day}
-                      </button>
-                    );
-                  })}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={assignEmail}
+                    onChange={(e) => setAssignEmail(e.target.value)}
+                    placeholder="e.g. faculty@example.com"
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                  />
                 </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={assignPhone}
+                    onChange={(e) => setAssignPhone(e.target.value)}
+                    placeholder="e.g. 9876543210"
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Joining Date
+                  </label>
+                  <input
+                    type="date"
+                    value={assignJoiningDate}
+                    onChange={(e) => setAssignJoiningDate(e.target.value)}
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Subjects
+                  </label>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Select one or more subjects.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {SUBJECT_OPTIONS.map((subject) => {
+                      const selected = assignSubjects.includes(subject);
+                      return (
+                        <button
+                          key={subject}
+                          type="button"
+                          onClick={() => toggleSubject(subject)}
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
+                            selected
+                              ? "bg-indigo-600 text-white ring-indigo-600"
+                              : "bg-gray-50 text-gray-700 ring-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
+                          }`}
+                        >
+                          {subject}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Preferred Days of Week
+                  </label>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Select one or more days.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {DAY_OPTIONS.map((day) => {
+                      const selected = assignDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => toggleDay(day)}
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
+                            selected
+                              ? "bg-emerald-600 text-white ring-emerald-600"
+                              : "bg-gray-50 text-gray-700 ring-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {assignError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {assignError}
+                  </p>
+                )}
               </div>
 
-              {assignError && (
-                <p className="text-sm text-red-600 dark:text-red-400">
-                  {assignError}
-                </p>
-              )}
-
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeAssignModal}
-                  disabled={assignLoading}
-                  className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={assignLoading}
-                  className="inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {assignLoading ? "Assigning..." : "Assign Faculty"}
-                </button>
+              <div className="flex-shrink-0 border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeAssignModal}
+                    disabled={assignLoading}
+                    className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={assignLoading}
+                    className="inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {assignLoading ? "Assigning..." : "Assign Faculty"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

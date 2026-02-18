@@ -13,6 +13,8 @@ import {
   addYoutubeLecture,
   getYoutubeLecturesForFaculty,
   deleteDayEntry,
+  updateClass,
+  deleteClass,
 } from "../data/freelanceFaculty";
 import useAuthStore from "../stores/authstore";
 
@@ -100,6 +102,19 @@ const FreelanceFacultyPage = () => {
   const [deleteEntryLoading, setDeleteEntryLoading] = useState(false);
   const [deleteEntryError, setDeleteEntryError] = useState(null);
   const [deletingEntryId, setDeletingEntryId] = useState(null);
+
+  // Edit entry state
+  const [editEntryModalOpen, setEditEntryModalOpen] = useState(false);
+  const [editEntryForm, setEditEntryForm] = useState({
+    entryId: null,
+    date: new Date().toISOString().slice(0, 10),
+    isPresent: true,
+    remarks: "",
+    classes: [], // Array of class objects with id, batchId, subjectId, topic, startTime, endTime, notes
+  });
+  const [editEntryError, setEditEntryError] = useState(null);
+  const [editEntrySubmitting, setEditEntrySubmitting] = useState(false);
+  const [editEntryLoading, setEditEntryLoading] = useState(false);
 
   const buildYoutubeRangeForScope = (scope) => {
     if (scope !== "THIS_MONTH") {
@@ -367,6 +382,178 @@ const FreelanceFacultyPage = () => {
       setDeleteEntryError(err?.message ?? "Failed to delete entry");
     } finally {
       setDeletingEntryId(null);
+    }
+  };
+
+  // Helper function to open edit entry modal
+  const openEditEntryModal = async (entry) => {
+    if (!entry || !facultyId) return;
+    
+    setEditEntryError(null);
+    setEditEntryLoading(true);
+    
+    try {
+      // Refresh faculty subjects when opening modal
+      const { subjects: refreshedSubjects } = await getFacultySubjectsAPI(facultyId);
+      if (refreshedSubjects) {
+        setFacultySubjects(refreshedSubjects);
+      }
+
+      // Format classes for editing
+      const formattedClasses = entry.classes?.map((c) => ({
+        id: c.id,
+        batchId: c.batchId || c.batch?.id || "",
+        subjectId: c.subjectId || c.subject?.id || "",
+        topic: c.topic || "",
+        startTime: c.startTime ? new Date(c.startTime).toTimeString().slice(0, 5) : "",
+        endTime: c.endTime ? new Date(c.endTime).toTimeString().slice(0, 5) : "",
+        notes: c.notes || "",
+      })) || [];
+
+      const isPresent = entry.isPresent !== undefined ? entry.isPresent : true;
+      
+      setEditEntryForm({
+        entryId: entry.id,
+        date: entry.date ? (typeof entry.date === "string" ? entry.date.slice(0, 10) : new Date(entry.date).toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10),
+        isPresent,
+        remarks: entry.remarks || "",
+        classes: isPresent && formattedClasses.length > 0 
+          ? formattedClasses 
+          : isPresent 
+            ? [{ id: null, batchId: batches.length > 0 ? batches[0].id : "", subjectId: refreshedSubjects?.length > 0 ? refreshedSubjects[0].id : "", topic: "", startTime: "", endTime: "", notes: "" }]
+            : [],
+      });
+      
+      setEditEntryModalOpen(true);
+    } catch (err) {
+      console.error("openEditEntryModal:", err);
+      setEditEntryError(err?.message ?? "Failed to load entry data");
+    } finally {
+      setEditEntryLoading(false);
+    }
+  };
+
+  // Helper function/controller to handle editing entries
+  const handleEditEntry = async (e) => {
+    e.preventDefault();
+    setEditEntryError(null);
+
+    if (!editEntryForm.entryId || !editEntryForm.date) {
+      setEditEntryError("Entry ID and date are required.");
+      return;
+    }
+
+    if (editEntryForm.isPresent) {
+      // Validate classes if present
+      const validClasses = editEntryForm.classes.filter(
+        (c) => c.batchId && c.subjectId && c.topic.trim() && c.startTime && c.endTime
+      );
+      
+      if (validClasses.length === 0) {
+        setEditEntryError("At least one valid class is required when present.");
+        return;
+      }
+
+      // Validate time ranges
+      for (const cls of validClasses) {
+        const duration = calculateDuration(cls.startTime, cls.endTime);
+        if (duration <= 0) {
+          setEditEntryError(`End time must be after start time for class: ${cls.topic || "Untitled"}`);
+          return;
+        }
+      }
+    }
+
+    setEditEntrySubmitting(true);
+    
+    try {
+      // Step 1: Update the day entry itself
+      const entryPayload = {
+        date: editEntryForm.date,
+        isPresent: editEntryForm.isPresent,
+        remarks: editEntryForm.remarks.trim() || null,
+      };
+
+      const { entry: updatedEntry, error: entryError } = await upsertDayEntry(facultyId, entryPayload);
+      if (entryError || !updatedEntry) {
+        setEditEntryError(entryError ?? "Failed to update entry");
+        return;
+      }
+
+      // Step 2: Handle classes if present
+      if (editEntryForm.isPresent && updatedEntry) {
+        const existingClassIds = editEntryForm.classes
+          .filter((c) => c.id !== null)
+          .map((c) => c.id);
+        
+        // Get current classes from the entry (use updatedEntry.id since entry might have been recreated)
+        const currentEntryRes = await getFacultyEntriesInRange(facultyId, {
+          from: editEntryForm.date,
+          to: editEntryForm.date,
+        });
+        const currentEntry = currentEntryRes.entries?.find((e) => e.id === updatedEntry.id);
+        const currentClassIds = currentEntry?.classes?.map((c) => c.id) || [];
+        
+        // Delete classes that are no longer in the form
+        const classesToDelete = currentClassIds.filter((id) => !existingClassIds.includes(id));
+        for (const classId of classesToDelete) {
+          await deleteClass(classId);
+        }
+
+        // Update or add classes
+        const validClasses = editEntryForm.classes.filter(
+          (c) => c.batchId && c.subjectId && c.topic.trim() && c.startTime && c.endTime
+        );
+
+        for (const cls of validClasses) {
+          const dateStr = editEntryForm.date;
+          const startDateTime = new Date(`${dateStr}T${cls.startTime}`);
+          const endDateTime = new Date(`${dateStr}T${cls.endTime}`);
+          const duration = calculateDuration(cls.startTime, cls.endTime);
+
+          if (cls.id && existingClassIds.includes(cls.id)) {
+            // Update existing class
+            await updateClass(cls.id, {
+              topic: cls.topic.trim(),
+              startTime: startDateTime.toISOString(),
+              endTime: endDateTime.toISOString(),
+              duration,
+              notes: cls.notes.trim() || null,
+            });
+          } else if (!cls.id) {
+            // Add new class
+            await addClassesToDayEntry(updatedEntry.id, [{
+              batchId: cls.batchId,
+              subjectId: cls.subjectId,
+              topic: cls.topic.trim(),
+              startTime: startDateTime.toISOString(),
+              endTime: endDateTime.toISOString(),
+              duration,
+              notes: cls.notes.trim() || null,
+            }]);
+          }
+        }
+      } else if (!editEntryForm.isPresent) {
+        // If changing to absent, delete all classes
+        const currentEntryRes = await getFacultyEntriesInRange(facultyId, {
+          from: editEntryForm.date,
+          to: editEntryForm.date,
+        });
+        const currentEntry = currentEntryRes.entries?.find((e) => e.id === updatedEntry.id);
+        const currentClassIds = currentEntry?.classes?.map((c) => c.id) || [];
+        for (const classId of currentClassIds) {
+          await deleteClass(classId);
+        }
+      }
+
+      setEditEntryModalOpen(false);
+      await fetchDetails();
+      await loadStats(statsScope);
+    } catch (err) {
+      console.error("handleEditEntry:", err);
+      setEditEntryError(err?.message ?? "Failed to update entry");
+    } finally {
+      setEditEntrySubmitting(false);
     }
   };
 
@@ -1328,6 +1515,26 @@ const FreelanceFacultyPage = () => {
               type="button"
               onClick={async () => {
                 const currentDate = new Date().toISOString().slice(0, 10);
+                const { entries: dateEntries } = await getFacultyEntriesInRange(facultyId, {
+                  from: currentDate,
+                  to: currentDate,
+                });
+                if (dateEntries && dateEntries.length > 0) {
+                  // If there's an entry for today, open edit modal with the first entry
+                  await openEditEntryModal(dateEntries[0]);
+                } else {
+                  // If no entry exists, open add entry modal with today's date
+                  await openAddEntryModal();
+                }
+              }}
+              className="inline-flex items-center rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-indigo-600 dark:bg-gray-800 dark:text-indigo-400 dark:hover:bg-gray-700"
+            >
+              Edit entry
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const currentDate = new Date().toISOString().slice(0, 10);
                 setDeleteEntryModalOpen(true);
                 setDeleteEntryDate(currentDate);
                 setDeleteEntryList([]);
@@ -1373,6 +1580,9 @@ const FreelanceFacultyPage = () => {
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Classes
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -1410,6 +1620,28 @@ const FreelanceFacultyPage = () => {
                           : "—"}
                       </div>
                     </td>
+                    <td className="px-6 py-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditEntryModal(entry)}
+                        disabled={editEntryLoading}
+                        className="inline-flex items-center rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 dark:border-indigo-600 dark:bg-gray-800 dark:text-indigo-400 dark:hover:bg-gray-700"
+                      >
+                        {editEntryLoading ? (
+                          <>
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+                            <span className="ml-2">Loading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span className="ml-2">Edit</span>
+                          </>
+                        )}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1417,6 +1649,268 @@ const FreelanceFacultyPage = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Entry Modal */}
+      {editEntryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex h-full max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Edit day entry
+              </h3>
+            </div>
+            <form onSubmit={handleEditEntry} className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                {editEntryError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                    {editEntryError}
+                  </div>
+                )}
+                <div>
+                  <label htmlFor="edit-entry-date" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="edit-entry-date"
+                    type="date"
+                    value={editEntryForm.date}
+                    onChange={(e) => setEditEntryForm((f) => ({ ...f, date: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Status <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={editEntryForm.isPresent === true}
+                        onChange={() => setEditEntryForm((f) => ({ ...f, isPresent: true }))}
+                        className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Present</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={editEntryForm.isPresent === false}
+                        onChange={() => setEditEntryForm((f) => ({ ...f, isPresent: false }))}
+                        className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Absent</span>
+                    </label>
+                  </div>
+                </div>
+                {editEntryForm.isPresent && (
+                  <>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Classes</h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditEntryForm((f) => ({
+                              ...f,
+                              classes: [
+                                ...f.classes,
+                                { id: null, batchId: batches.length > 0 ? batches[0].id : "", subjectId: getFacultySubjectsForDropdown().length > 0 ? getFacultySubjectsForDropdown()[0].id : "", topic: "", startTime: "", endTime: "", notes: "" },
+                              ],
+                            }));
+                          }}
+                          className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                        >
+                          + Add Class
+                        </button>
+                      </div>
+                      {editEntryForm.classes.map((cls, index) => (
+                        <div key={index} className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Class {index + 1}</span>
+                            {editEntryForm.classes.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditEntryForm((f) => ({
+                                    ...f,
+                                    classes: f.classes.filter((_, i) => i !== index),
+                                  }));
+                                }}
+                                className="text-sm text-red-600 hover:text-red-500 dark:text-red-400"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                Batch <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={cls.batchId}
+                                onChange={(e) => {
+                                  const newClasses = [...editEntryForm.classes];
+                                  newClasses[index].batchId = e.target.value;
+                                  setEditEntryForm((f) => ({ ...f, classes: newClasses }));
+                                }}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                required
+                              >
+                                <option value="">Select batch</option>
+                                {batches.map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.name} {b.code ? `(${b.code})` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                Subject <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={cls.subjectId}
+                                onChange={(e) => {
+                                  const newClasses = [...editEntryForm.classes];
+                                  newClasses[index].subjectId = e.target.value;
+                                  setEditEntryForm((f) => ({ ...f, classes: newClasses }));
+                                }}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                required
+                              >
+                                <option value="">Select subject</option>
+                                {getFacultySubjectsForDropdown().map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name} {s.code ? `(${s.code})` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                Topic <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={cls.topic}
+                                onChange={(e) => {
+                                  const newClasses = [...editEntryForm.classes];
+                                  newClasses[index].topic = e.target.value;
+                                  setEditEntryForm((f) => ({ ...f, classes: newClasses }));
+                                }}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                placeholder="e.g. Introduction to React"
+                                required
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                  Start time <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="time"
+                                  value={cls.startTime}
+                                  onChange={(e) => {
+                                    const newClasses = [...editEntryForm.classes];
+                                    newClasses[index].startTime = e.target.value;
+                                    setEditEntryForm((f) => ({ ...f, classes: newClasses }));
+                                  }}
+                                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                  End time <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="time"
+                                  value={cls.endTime}
+                                  onChange={(e) => {
+                                    const newClasses = [...editEntryForm.classes];
+                                    newClasses[index].endTime = e.target.value;
+                                    setEditEntryForm((f) => ({ ...f, classes: newClasses }));
+                                  }}
+                                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                  required
+                                />
+                              </div>
+                            </div>
+                            {cls.startTime && cls.endTime && (
+                              <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                Duration: {calculateDuration(cls.startTime, cls.endTime)} minutes
+                              </div>
+                            )}
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                Notes
+                              </label>
+                              <textarea
+                                value={cls.notes}
+                                onChange={(e) => {
+                                  const newClasses = [...editEntryForm.classes];
+                                  newClasses[index].notes = e.target.value;
+                                  setEditEntryForm((f) => ({ ...f, classes: newClasses }));
+                                }}
+                                rows={2}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                placeholder="Optional notes about the class"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label htmlFor="edit-entry-remarks" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Remarks
+                  </label>
+                  <textarea
+                    id="edit-entry-remarks"
+                    value={editEntryForm.remarks}
+                    onChange={(e) => setEditEntryForm((f) => ({ ...f, remarks: e.target.value }))}
+                    rows={2}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    placeholder="Optional remarks about the day"
+                  />
+                </div>
+              </div>
+              <div className="flex-shrink-0 flex justify-end gap-2 border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditEntryModalOpen(false);
+                    setEditEntryForm({
+                      entryId: null,
+                      date: new Date().toISOString().slice(0, 10),
+                      isPresent: true,
+                      remarks: "",
+                      classes: [],
+                    });
+                    setEditEntryError(null);
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editEntrySubmitting}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                >
+                  {editEntrySubmitting ? "Updating…" : "Update entry"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete Entry Modal */}
       {deleteEntryModalOpen && (

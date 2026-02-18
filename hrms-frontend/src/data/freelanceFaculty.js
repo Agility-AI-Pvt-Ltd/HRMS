@@ -263,6 +263,38 @@ export const addClassesToDayEntry = async (dayEntryId, classes) => {
   }
 };
 
+// Update a class within a day entry
+export const updateClass = async (classId, payload) => {
+  try {
+    const res = await api.patch(`/freelance/classes/${classId}`, payload);
+    const data = res?.data;
+    if (data?.success && data?.class) return { class: data.class, error: null };
+    return { class: null, error: data?.message ?? "Failed to update class." };
+  } catch (err) {
+    console.log("updateClass:", err);
+    return {
+      class: null,
+      error: err?.response?.data?.message ?? err?.message ?? "Failed to update class.",
+    };
+  }
+};
+
+// Delete a class from a day entry
+export const deleteClass = async (classId) => {
+  try {
+    const res = await api.delete(`/freelance/classes/${classId}`);
+    const data = res?.data;
+    if (data?.success) return { success: true, error: null };
+    return { success: false, error: data?.message ?? "Failed to delete class." };
+  } catch (err) {
+    console.log("deleteClass:", err);
+    return {
+      success: false,
+      error: err?.response?.data?.message ?? err?.message ?? "Failed to delete class.",
+    };
+  }
+};
+
 // ---------------- Youtube Lectures ------------------
 export const addYoutubeLecture=async({ facultyId, date, youtubeUrl, title, description })=>{
   try{
