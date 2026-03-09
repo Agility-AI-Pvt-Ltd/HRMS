@@ -34,11 +34,26 @@ export default function FreelanceFacultyManagerView() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("NAME_ASC");
 
+  const [monthFilter, setMonthFilter] = useState(""); // "" = all time, "YYYY-MM" = specific month
+
   const [error,setError]=useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  // Generate last 24 months as options
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("default", { month: "long", year: "numeric" });
+      options.push({ value, label });
+    }
+    return options;
+  }, []);
 
   const DUMMY_MANAGERS = [
     { id: "MGR-1001", name: "Aarav Mehta", email: "aarav.mehta@dummy.com" },
@@ -110,11 +125,21 @@ export default function FreelanceFacultyManagerView() {
     if(!managerId) return;
     setLoading(true);
     setError(null);
-    const {data,error:error}=await getFacultiesByManagerId(managerId);
-    setFaculties(data ?? null);
-    setError(error ?? null);
+    let dateRange = {};
+    if (monthFilter) {
+      const [year, month] = monthFilter.split("-").map(Number);
+      const from = new Date(year, month - 1, 1);
+      const to = new Date(year, month, 0); // last day of month
+      dateRange = {
+        from: from.toISOString().split("T")[0],
+        to: to.toISOString().split("T")[0],
+      };
+    }
+    const {data,error:err}=await getFacultiesByManagerId(managerId, dateRange);
+    setFaculties(data ?? []);
+    setError(err ?? null);
     setLoading(false);
-  },[managerId]);
+  },[managerId, monthFilter]);
 
   useEffect(()=>{
     loadFaculties();
@@ -122,7 +147,7 @@ export default function FreelanceFacultyManagerView() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, statusFilter, sortBy]);
+  }, [query, statusFilter, sortBy, monthFilter]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -346,29 +371,36 @@ export default function FreelanceFacultyManagerView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-              Total Entries
+        <div className="flex flex-col gap-2">
+          {monthFilter && (
+            <div className="text-right text-xs font-medium text-indigo-600 dark:text-indigo-400">
+              {monthOptions.find((m) => m.value === monthFilter)?.label ?? monthFilter}
             </div>
-            <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {totalEntries}
+          )}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Total Entries
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {totalEntries}
+              </div>
             </div>
-          </div>
-          <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-              Total Classes
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Total Classes
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {totalClasses}
+              </div>
             </div>
-            <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {totalClasses}
-            </div>
-          </div>
-          <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-              Total Hours
-            </div>
-            <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {formattedTotalHours}
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Total Hours
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {formattedTotalHours}
+              </div>
             </div>
           </div>
         </div>
@@ -628,7 +660,7 @@ export default function FreelanceFacultyManagerView() {
       {/* Filters */}
       <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-center">
-          <div className="md:col-span-6">
+          <div className="md:col-span-4">
             <label className="sr-only" htmlFor="faculty-search">
               Search
             </label>
@@ -645,6 +677,25 @@ export default function FreelanceFacultyManagerView() {
           </div>
 
           <div className="md:col-span-3">
+            <label className="sr-only" htmlFor="faculty-month">
+              Month
+            </label>
+            <select
+              id="faculty-month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+            >
+              <option value="">All time</option>
+              {monthOptions.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
             <label className="sr-only" htmlFor="faculty-status">
               Status
             </label>
@@ -737,9 +788,12 @@ export default function FreelanceFacultyManagerView() {
                       className="hover:bg-gray-50/70 dark:hover:bg-gray-950/40"
                     >
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-gray-900 dark:text-gray-100">
+                        <Link
+                          to={`/freelanceManagers/${managerId}/freelance/${faculty.id}`}
+                          className="font-semibold text-indigo-600 hover:text-indigo-500 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+                        >
                           {faculty.name}
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">

@@ -423,13 +423,23 @@ export const checkFreelanceFacultyManager=async (req,res)=>{
 // ============list freelance faculties under a manager=========================
 export const listFreelanceFaculties=async (req,res)=>{
   try{
-    const {managerId}=req.body;
+    const { managerId, from, to } = req.body;
 
     if(!managerId){
       return res.status(400).json({
         message:"Manager ID is required"
       })
     }
+
+    const hasDateFilter = from || to;
+    const dayEntriesWhere = hasDateFilter
+      ? {
+          date: {
+            ...(from ? { gte: new Date(from) } : {}),
+            ...(to ? { lte: new Date(to) } : {}),
+          },
+        }
+      : undefined;
 
     const faculties = await prisma.freelanceFaculty.findMany({
       where: { managerId },
@@ -443,16 +453,16 @@ export const listFreelanceFaculties=async (req,res)=>{
           },
         },
         dayEntries: {
+          ...(dayEntriesWhere ? { where: dayEntriesWhere } : {}),
           select: {
             id: true,
             date: true,
             totalClasses: true,
-            totalDuration: true, // minutes
+            totalDuration: true,
           },
           orderBy: {
             date: "desc",
           },
-          take: 10,
         },
         _count: {
           select: {
@@ -464,8 +474,6 @@ export const listFreelanceFaculties=async (req,res)=>{
         createdAt: "desc",
       },
     });
-
-
 
     const facultyStats = faculties.map((faculty) => {
       const totalClasses =
@@ -479,6 +487,9 @@ export const listFreelanceFaculties=async (req,res)=>{
           0
         ) || 0;
       const totalHours = totalDurationMinutes / 60;
+      const totalEntries = hasDateFilter
+        ? faculty.dayEntries.length
+        : faculty._count.dayEntries;
 
       return {
         id: faculty.id,
@@ -490,7 +501,7 @@ export const listFreelanceFaculties=async (req,res)=>{
         preferredDaysOfWeek: faculty.preferredDaysOfWeek,
         status: faculty.status,
         manager: faculty.manager,
-        totalEntries: faculty._count.dayEntries,
+        totalEntries,
         totalClasses,
         totalHours,
         createdAt: faculty.createdAt,

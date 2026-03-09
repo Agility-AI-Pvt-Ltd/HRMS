@@ -127,6 +127,16 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/freelanceManagers/:managerId/freelance/:facultyId"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <FreelanceFacultyPage/>
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/weekly-off"
