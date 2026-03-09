@@ -16,9 +16,14 @@ export async function getFreelanceManagers(){
 }
 
 // to get all the freelance faculties under a faculty managaer 
-export const getFacultiesByManagerId = async (managerId) =>{
+// Optional date range: { from, to } as YYYY-MM-DD strings to filter entries by month
+export const getFacultiesByManagerId = async (managerId, { from, to } = {}) =>{
   try{
-    const res=await api.post("/freelance/listFacultiesUnderManager",{managerId});
+    const res=await api.post("/freelance/listFacultiesUnderManager",{
+      managerId,
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    });
     const data=res?.data;
     if(data?.success && Array.isArray(data.faculties)){
       return {data:data.faculties,error:null};

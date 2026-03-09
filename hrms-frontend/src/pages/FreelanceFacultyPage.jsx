@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   listFacultiesForManager,
+  getFacultiesByManagerId,
   getFacultyStats,
   getFacultyEntriesInRange,
   listBatches,
@@ -39,10 +40,12 @@ const formatDate = (d) => {
 };
 
 const FreelanceFacultyPage = () => {
-  const { facultyId } = useParams();
+  const { facultyId, managerId: managerIdParam } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const managerId = user?.id;
+  // Admin accesses via /freelanceManagers/:managerId/freelance/:facultyId (managerId in URL)
+  // LYF_EMPLOYEE accesses via /freelance/:facultyId (managerId = own user ID)
+  const managerId = managerIdParam ?? user?.id;
 
   const [faculty, setFaculty] = useState(null);
   const [stats, setStats] = useState(null);
@@ -175,13 +178,26 @@ const FreelanceFacultyPage = () => {
     setError(null);
 
     try {
-      const { faculties: list = [], error: listError } =
-        await listFacultiesForManager(managerId);
-      if (listError) {
-        setError(listError);
-        setFaculty(null);
-        setLoading(false);
-        return;
+      // Admin uses the admin endpoint; LYF_EMPLOYEE uses the manager endpoint
+      let list = [];
+      if (managerIdParam) {
+        const { data, error: listError } = await getFacultiesByManagerId(managerId);
+        if (listError) {
+          setError(listError);
+          setFaculty(null);
+          setLoading(false);
+          return;
+        }
+        list = data ?? [];
+      } else {
+        const { faculties, error: listError } = await listFacultiesForManager(managerId);
+        if (listError) {
+          setError(listError);
+          setFaculty(null);
+          setLoading(false);
+          return;
+        }
+        list = faculties ?? [];
       }
 
       const found = Array.isArray(list) ? list.find((f) => String(f.id) === String(facultyId)) : null;
@@ -227,7 +243,7 @@ const FreelanceFacultyPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [managerId, facultyId]);
+  }, [managerId, managerIdParam, facultyId]);
 
   useEffect(() => {
     fetchDetails();
@@ -793,7 +809,7 @@ const FreelanceFacultyPage = () => {
       <div className="space-y-4">
         <button
           type="button"
-          onClick={() => navigate("/freelance")}
+          onClick={() => navigate(managerIdParam ? `/freelanceManagers/${managerIdParam}` : "/freelance")}
           className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
         >
           ← Back to faculties
@@ -814,7 +830,7 @@ const FreelanceFacultyPage = () => {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate("/freelance")}
+          onClick={() => navigate(managerIdParam ? `/freelanceManagers/${managerIdParam}` : "/freelance")}
           className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
         >
           ← Back to faculties
