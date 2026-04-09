@@ -644,13 +644,11 @@ if (!reimbursement.user.isActive) {
 
     const anyRejected = approvals.some((a) => a.status === "REJECTED");
 
-    const managerApprovals = approvals.filter(
-      (a) => a.manager.role !== "ADMIN"
-    );
+    const allApproved =
+      approvals.length > 0 &&
+      approvals.every((a) => a.status === "APPROVED");
 
-    const allManagersApproved =
-      managerApprovals.length > 0 &&
-      managerApprovals.every((a) => a.status === "APPROVED");
+    const allManagersApproved = allApproved;
 
     let finalStatus = "PENDING";
 

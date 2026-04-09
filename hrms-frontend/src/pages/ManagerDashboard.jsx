@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import useAuthStore from "../stores/authstore";
 import { FiEdit, FiTrash2 } from "react-icons/fi";
+import ConfirmRejPopup from "../components/ConfirmRejPopup";
 
 // calculate raw days between dates
 const getLeaveDays = (startDate, endDate) => {
@@ -50,6 +51,9 @@ const [notifications, setNotifications] = useState([]);
 
 const [msg, setMsg] = useState("");
 const [msgType, setMsgType] = useState("success"); // success | error
+const [actionLoading, setActionLoading] = useState(null);
+// kis cheez ko reject kar rahe hain (leave / reimb)
+const [rejectContext, setRejectContext] = useState(null); 
 
 /* =========================================================
    🔁 LEAVE HELPERS (SAME AS ADMIN)
@@ -168,6 +172,7 @@ const deleteReimbursement = async (reimbId) => {
   // ---- LEAVES ----
  const approveLeave = async (id) => {
   try {
+    setActionLoading("leave-" + id);
     await api.patch(`/leaves/${id}/approve`, {
       action: "APPROVED",
     });
@@ -182,36 +187,22 @@ const deleteReimbursement = async (reimbId) => {
       "You are not allowed to approve this leave"
     );
     setMsgType("error");
+  } finally {
+    setActionLoading(null);
   }
 };
 
-const rejectLeave = async (id) => {
-  const reason = prompt("Reject reason?");
-  if (!reason) return;
-
-  try {
-    await api.patch(`/leaves/${id}/approve`, {
-      action: "REJECTED",
-      reason,
-    });
-
-    setMsg("Leave rejected successfully");
-    setMsgType("success");
-    loadData();
-
-  } catch (err) {
-    setMsg(
-      err?.response?.data?.message ||
-      "You are not allowed to reject this leave"
-    );
-    setMsgType("error");
-  }
+const rejectLeave = (id) => {
+  // sirf popup open karo, API baad me chalega
+  setRejectContext({ type: "LEAVE", id });
 };
 
   // ---- REIMBURSEMENTS ----
 // ✅ APPROVE
 const approveReimbursement = async (id) => {
   try {
+    setActionLoading("reimb-" + id);        // 🔹 row-level loader start
+
     await api.patch(`/reimbursement/${id}/status`, {
       status: "APPROVED",
     });
@@ -226,30 +217,52 @@ const approveReimbursement = async (id) => {
       "You are not allowed to approve this reimbursement"
     );
     setMsgType("error");
+  } finally {
+    setActionLoading(null);                 // 🔹 loader stop
   }
 };
 
 // ✅ REJECT
-const rejectReimbursement = async (id) => {
-  const reason = prompt("Reject reason?");
-  if (!reason) return;
+const rejectReimbursement = (id) => {
+  // sirf popup open karo
+  setRejectContext({ type: "REIMBURSEMENT", id });
+};
+
+// common confirm handler for popup
+const handleConfirmReject = async (reason) => {
+  if (!rejectContext) return;
 
   try {
-    await api.patch(`/reimbursement/${id}/status`, {
-      status: "REJECTED",
-      reason,
-    });
+    if (rejectContext.type === "LEAVE") {
+      await api.patch(`/leaves/${rejectContext.id}/approve`, {
+        action: "REJECTED",
+        reason,
+      });
 
-    setMsg("Reimbursement rejected successfully");
-    setMsgType("success");
+      setMsg("Leave rejected successfully");
+      setMsgType("success");
+    } else if (rejectContext.type === "REIMBURSEMENT") {
+      await api.patch(`/reimbursement/${rejectContext.id}/status`, {
+        status: "REJECTED",
+        reason,
+      });
+
+      setMsg("Reimbursement rejected successfully");
+      setMsgType("success");
+    }
+
     loadData();
-
   } catch (err) {
-    setMsg(
-      err?.response?.data?.message ||
-      "You are not allowed to reject this reimbursement"
-    );
+    const fallbackMessage =
+      rejectContext.type === "LEAVE"
+        ? "You are not allowed to reject this leave"
+        : "You are not allowed to reject this reimbursement";
+
+    setMsg(err?.response?.data?.message || fallbackMessage);
     setMsgType("error");
+  } finally {
+    // popup band karo
+    setRejectContext(null);
   }
 };
 
@@ -295,7 +308,9 @@ return (
   approveLeave={approveLeave} 
   rejectLeave={rejectLeave}
   deleteLeave={deleteLeave}
-/>
+  actionLoading={actionLoading}
+  managerId={user.id}   
+/>    
       )}
 
       {/* REIMBURSEMENTS */}
@@ -305,6 +320,8 @@ return (
     approve={approveReimbursement}
     reject={rejectReimbursement}
     deleteReimbursement={deleteReimbursement}
+    actionLoading={actionLoading} 
+    managerId={user.id} 
   />
 )}
       {/* EMPLOYEES */}
@@ -450,6 +467,12 @@ return (
 
   </div>
 )}
+    {rejectContext && (
+      <ConfirmRejPopup
+        onCancel={() => setRejectContext(null)}
+        onConfirm={handleConfirmReject}
+      />
+    )}
     </div>
   </div>
 );
@@ -475,7 +498,7 @@ function TabButton({ label, value, activeTab, setActiveTab }) {
 }
 
 /* ================= LEAVES ================= */
-function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave }) {
+function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave, actionLoading, managerId})  {
   if (!leaves.length) return <Empty text="No leave requests" />;
 
   return (
@@ -484,13 +507,18 @@ function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave }) {
   <tr className="border-b">
     <th className="text-left">Name</th>
     <th className="text-left">Type</th>
-    <th className="text-left">Dates</th>
+    <th className="text-left">Dates</th>  
     <th className="text-left">Status</th>
     <th className="text-left">Reject Reason</th> {/* ✅ NEW */}
+    <th className="text-left">Actions</th>
+
   </tr>
 </thead>
       <tbody>
-        {leaves.map((l) => (
+        {leaves.map((l) => {
+            const myApproval = l.approvals?.find((a) => a.managerId === managerId);
+            const youAlreadyApproved = myApproval && myApproval.status === "APPROVED";
+            return(   
           <tr key={l.id} className="border-b">
             {/* ✅ FULL NAME */}
             <td>
@@ -507,7 +535,10 @@ function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave }) {
     {getDisplayDays(l)}
   </div>
 </td>
-  <td>{l.status}</td>
+<td>
+        {l.status}
+        {l.status === "PENDING" && youAlreadyApproved ? " (You approved)" : ""}
+      </td>
 
 {/* ✅ REJECT REASON */}
 <td className="text-xs text-red-600 dark:text-red-400">
@@ -515,19 +546,21 @@ function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave }) {
 </td>
 
 <td className="flex gap-2">
-  {l.status === "PENDING" && (
+  {l.status === "PENDING" && !youAlreadyApproved && (
     <>
-      <button
+     <button
         onClick={() => approveLeave(l.id)}
-        className="px-2 py-1 bg-green-600 text-white rounded"
+        disabled={actionLoading === "leave-" + l.id}
+        className="px-2 py-1 bg-green-600 text-white rounded disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Approve
+        {actionLoading === "leave-" + l.id ? "Loading..." : "Approve"}
       </button>
       <button
         onClick={() => rejectLeave(l.id)}
-        className="px-2 py-1 bg-red-600 text-white rounded"
+        disabled={actionLoading === "leave-" + l.id}
+        className="px-2 py-1 bg-red-600 text-white rounded disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Reject
+        {actionLoading === "leave-" + l.id ? "Loading..." : "Reject"}
       </button>
             <button
             onClick={() => deleteLeave(l.id)}
@@ -539,16 +572,15 @@ function LeavesTable({ leaves, approveLeave, rejectLeave, deleteLeave }) {
     </>
   )}
 </td>
-
-          </tr>
-        ))}
+          </tr>);
+        })}
       </tbody>
     </table>
   );
 }
 
 /* ================= REIMBURSEMENTS ================= */
-function ReimbursementsTable({ reimbursements, approve, reject, deleteReimbursement }) {
+function ReimbursementsTable({ reimbursements, approve, reject, deleteReimbursement, actionLoading, managerId}) {
   if (!reimbursements.length) return <Empty text="No reimbursements" />;
 
   return (
@@ -563,7 +595,14 @@ function ReimbursementsTable({ reimbursements, approve, reject, deleteReimbursem
         </tr>
       </thead>
       <tbody>
-        {reimbursements.map((r) => (
+      {reimbursements.map((r) => {
+  const myApproval = r.approvals?.find(
+    (a) => a.managerId === managerId
+  );
+
+  const youAlreadyApproved =
+    myApproval && myApproval.status === "APPROVED";
+    return(
           <tr key={r.id} className="border-b align-top">
             {/* ✅ FULL NAME */}
             <td>
@@ -592,25 +631,32 @@ function ReimbursementsTable({ reimbursements, approve, reject, deleteReimbursem
                 <span className="text-xs text-gray-500">No bills</span>
               )}
             </td>
-<td>{r.status}</td>
+            <td>
+  {r.status}
+  {r.status === "PENDING" && youAlreadyApproved
+    ? " (You approved)"
+    : ""}
+</td>
 {/* ✅ REJECT REASON */}
 <td className="text-xs text-red-600 dark:text-red-400">
   {r.status === "REJECTED" ? r.rejectReason || "-" : "-"}
 </td>
 <td className="flex gap-2">
-  {r.status === "PENDING" && (
+  {r.status === "PENDING" && !youAlreadyApproved && (
     <>
       <button
         onClick={() => approve(r.id)}
-        className="px-2 py-1 bg-green-600 text-white rounded"
+        disabled={actionLoading === "reimb-" + r.id}
+        className="px-2 py-1 bg-green-600 text-white rounded disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Approve
+        {actionLoading === "reimb-" + r.id ? "Loading..." : "Approve"}
       </button>
       <button
         onClick={() => reject(r.id)}
-        className="px-2 py-1 bg-red-600 text-white rounded"
+        disabled={actionLoading === "reimb-" + r.id}
+        className="px-2 py-1 bg-red-600 text-white rounded disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Reject
+        {actionLoading === "reimb-" + r.id ? "Loading..." : "Reject"}
       </button>
                         <button
                     onClick={() => deleteReimbursement(r.id)}
@@ -623,7 +669,8 @@ function ReimbursementsTable({ reimbursements, approve, reject, deleteReimbursem
   )}
 </td>
           </tr>
-        ))}
+        );
+})}
       </tbody>
     </table>
   );
